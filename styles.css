@@ -43,6 +43,10 @@ a { color: inherit; }
 nav { display: flex; gap: 26px; }
 nav a { color: var(--muted); text-decoration: none; font-size: 0.9rem; font-weight: 650; }
 nav a:hover { color: var(--blue); }
+.country-switch { display: flex; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,0.55); }
+.country-switch a { padding: 6px 14px; border-radius: 999px; color: var(--muted); text-decoration: none; font-size: 0.78rem; font-weight: 700; }
+.country-switch a:hover { color: var(--blue); }
+.country-switch a.active { color: white; background: var(--blue); }
 
 main { overflow: hidden; }
 .hero {
@@ -181,6 +185,17 @@ input[type="number"] { width: 78px; padding: 7px; text-align: right; font-varian
 .ranking-note { margin: 18px 0 0; color: #9fbdbc; font-size: 0.7rem; }
 .ranking-note strong { color: #d3e6e2; }
 
+.map-block { margin-top: 58px; padding-top: 42px; border-top: 1px solid #3b6870; }
+.map-layout { display: flex; align-items: flex-start; justify-content: center; gap: 56px; }
+#phlMap { flex: 0 1 620px; }
+.map-land { fill: #2a6570; stroke: #4d838d; stroke-width: 1; }
+.map-district { stroke-width: 4; stroke-linejoin: round; cursor: pointer; transition: stroke 120ms ease; }
+.map-district:hover, .map-district:focus-visible { stroke: white; outline: none; }
+.map-district-unranked { opacity: 0.6; }
+.map-legend { position: sticky; top: 20px; display: grid; gap: 12px; padding-top: 12px; color: #cfe3df; font-size: 0.82rem; }
+.map-legend span { display: flex; align-items: center; gap: 10px; }
+.map-legend i { width: 15px; height: 15px; flex: 0 0 auto; border: 1px solid #0c333a; border-radius: 4px; }
+
 .method-section { display: grid; grid-template-columns: 1fr 1fr; gap: 90px; background: #fdfbf6; }
 .method-copy > p:not(.eyebrow) { margin-top: 24px; color: var(--muted); }
 .threshold-scale { margin-top: 30px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
@@ -228,6 +243,9 @@ footer a { color: var(--blue); }
   .metric-grid { grid-template-columns: 1fr 1fr; }
   .evidence-foot, .method-section { grid-template-columns: 1fr; }
   .ranking-heading { align-items: flex-start; flex-direction: column; }
+  .map-layout { flex-direction: column; gap: 20px; }
+  #phlMap { flex: none; width: 100%; }
+  .map-legend { position: static; }
   .ranking-row { grid-template-columns: 38px minmax(130px, 1.3fr) minmax(115px, 1fr); gap: 10px; }
   .ranking-row > :last-child { display: none; }
   footer { flex-direction: column; }
@@ -236,6 +254,7 @@ footer a { color: var(--blue); }
 @media (max-width: 440px) {
   .brand { font-size: 0.76rem; }
   .brand-mark { width: 30px; height: 30px; }
+  .country-switch a { padding: 5px 10px; font-size: 0.72rem; }
   h1 { font-size: 2.9rem; }
   .hero-actions { align-items: stretch; flex-direction: column; text-align: center; }
   .score-ring { width: 142px; height: 142px; }

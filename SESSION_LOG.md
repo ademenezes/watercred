@@ -50,3 +50,23 @@ Analyze the source creditworthiness workbook and validated Georgia utility datas
 - Workbook definition conflicts and boundary ambiguities need stakeholder resolution.
 - Provisional score bands and operational-ranking weights are not empirically calibrated to defaults or external agency ratings.
 - The transitional utility IDs in the CSV remain separate because no authoritative entity-resolution rule was supplied.
+
+## 2026-07-16 — Philippines page, creditworthiness ranking, WaterCRED rename
+
+- Renamed the platform back to **WaterCRED** (titles, brand, meta, footers, README).
+- Split `app.js` into `core.js` (shared engine) + `georgia.js` / `philippines.js` country configs; each page calls `initApp(config)`. Georgia behavior verified unchanged (49.8 default, 49.0 workbook preset).
+- Fixed the broken Georgia CSV fetch (`georgia_validated_data.csv` had moved to `data/`).
+- Added `philippines.html`: full simulator seeded with PSA's 2023 poverty incidence (15.5%) and five COA/LWUA portfolio medians (default score 53.0 = 212/400), evidence explorer over `data/philippines_validated.csv` (1,610 observations · 57 water districts · 2009–2024, PHP-million rows normalized at load), and an evidence-based **creditworthiness ranking**: renormalized 23-factor model, up to 9 evidenced factors per utility, ≥5 required to rank, ≤5-year recency, same-year derived ratios, current-ratio liquidity bands, negative equity scored 0 on leverage.
+- Added a Georgia/Philippines country switcher to the top bar of both pages.
+- Verified: Manaoag Water District hand-recomputation matches the UI (74.3, 9/23 factors); negative-equity districts render finite scores; no console errors.
+
+## 2026-07-16 (later) — Ranking threshold lowered, district map added
+
+- Lowered the Philippines ranking minimum from 5 to 4 evidenced factors (user decision): 29 of 57 districts now rank at year 2023 (previously 12). Disclosure texts updated in page, method notes, and README.
+- Added a "District map by rating" block to the Philippines evidence section: inline SVG, Natural Earth 50m country outline (public domain), markers at approximate municipal centroids colored by rating band, unranked districts in gray, click/keyboard selects the utility in the evidence explorer. New `phl-map.js` holds the outline and 57 district coordinates. Ambiguous district names resolved via LWUA/COA records: Taytay = Palawan, Plaridel & Santa Maria = Bulacan, Buenavista = Agusan del Norte.
+- Georgia page regression re-verified (49.8 default score, ranking unchanged, no console errors).
+
+## 2026-07-16 (later) — District map reworked to boundary polygons
+
+- Replaced the map's centroid markers with actual municipal boundary polygons (GADM 4.1 level-2, Douglas-Peucker simplified to ~250 m, stored locally in phl-map.js), colored by rating band; Manila Water approximated by its seven NCR east-zone cities. All 57 districts matched and province-verified.
+- Visibility pass: lighter land fill against the dark evidence section, larger map (620px flex basis), sticky legend, thicker strokes so small municipalities stay visible, hover/focus highlight in white.

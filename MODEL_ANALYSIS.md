@@ -1,4 +1,4 @@
-# Utility Creditworthiness Simulator: workbook and Georgia data analysis
+# WaterCRED: workbook and Georgia data analysis
 
 ## Executive finding
 
