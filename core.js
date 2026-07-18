@@ -253,7 +253,40 @@ function initApp(config) {
     </article>`).join("");
     const available = values.filter(m => m.value != null).length;
     document.querySelector("#evidenceCoverage").innerHTML = `<strong>${available} of ${config.metrics.length}</strong> context metrics available for ${utility === "ALL" ? config.portfolioLabel : displayName(utility)} in ${year}.`;
+    const detailPanel = document.querySelector("#utilityDetail");
+    if (detailPanel) {
+      if (utility === "ALL") detailPanel.innerHTML = "";
+      else {
+        const result = config.scoreUtility(utility, year, helpers);
+        detailPanel.innerHTML = result.factors ? `
+          <h4>Ranking factors for ${displayName(utility)} — ${result.ranked ? `score ${result.score.toFixed(1)}` : "unranked"} (${year})</h4>
+          ${renderFactorBreakdown(result)}` : "";
+      }
+    }
     renderRanking(year);
+  }
+
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  // Per-utility factor breakdown, rendered when the scorer returns row.factors
+  // (Philippines); scorers without factor details keep the plain row markup.
+  function renderFactorBreakdown(row) {
+    const ordered = [...row.factors.filter(f => f.available), ...row.factors.filter(f => !f.available)];
+    const body = ordered.map(f => f.available
+      ? `<tr><td>${f.name}${f.unitNote ? ` <small>(${esc(f.unitNote)})</small>` : ""}</td>
+          <td>${esc(f.formatted)}</td>
+          <td><b>${f.points}/4</b> <small>${esc(f.band)}</small></td>
+          <td>${f.weight}</td><td>${f.weighted}</td>
+          <td>${f.years.join(", ")}</td><td>${esc(f.sourceLabel)}</td></tr>`
+      : `<tr class="factor-missing"><td>${f.name}</td><td colspan="6">no validated observation within 5 years</td></tr>`
+    ).join("");
+    return `<div class="factor-breakdown">
+      <p class="factor-breakdown-note">${esc(row.detailNote ?? "")}</p>
+      <div class="factor-table-wrap"><table class="factor-table">
+        <thead><tr><th>Factor</th><th>Value</th><th>Band points</th><th>Weight</th><th>Weighted</th><th>Data year</th><th>Source</th></tr></thead>
+        <tbody>${body}</tbody>
+      </table></div>
+    </div>`;
   }
 
   function renderRanking(year) {
@@ -263,18 +296,28 @@ function initApp(config) {
     const unranked = results.filter(r => !r.ranked).sort((a,b) => a.name.localeCompare(b.name));
     ranked.forEach((row, index) => row.rank = index + 1);
     const rows = [...ranked, ...unranked];
-    document.querySelector("#rankingBody").innerHTML = rows.map(row => `<div class="ranking-row ${row.ranked ? "" : "unranked"}" role="row">
+    const openIds = new Set([...document.querySelectorAll(".ranking-details[open]")].map(d => d.dataset.utility));
+    document.querySelector("#rankingBody").innerHTML = rows.map(row => {
+      const cells = `
       <span class="ranking-rank" role="cell">${row.ranked ? row.rank : "—"}</span>
       <span class="ranking-name" role="cell"><button type="button" data-ranking-utility="${row.id}">${row.name}</button></span>
       <span class="ranking-score" role="cell"><span class="ranking-bar"><span style="width:${row.ranked ? row.score : 0}%"></span></span><b>${row.ranked ? row.score.toFixed(1) : "—"}</b></span>
-      <span class="ranking-evidence" role="cell"><b>${row.coverageLabel} · ${row.confidence}</b>${row.yearRange || "Insufficient current data"}</span>
-    </div>`).join("");
-    document.querySelectorAll("[data-ranking-utility]").forEach(button => button.addEventListener("click", () => {
+      <span class="ranking-evidence" role="cell"><b>${row.coverageLabel} · ${row.confidence}</b>${row.yearRange || "Insufficient current data"}</span>`;
+      if (!row.factors) return `<div class="ranking-row ${row.ranked ? "" : "unranked"}" role="row">${cells}</div>`;
+      return `<details class="ranking-details" data-utility="${row.id}"${openIds.has(row.id) ? " open" : ""}>
+        <summary class="ranking-row expandable ${row.ranked ? "" : "unranked"}" role="row">${cells}
+          <span class="ranking-toggle" role="cell" aria-hidden="true"></span>
+        </summary>
+        ${renderFactorBreakdown(row)}
+      </details>`;
+    }).join("");
+    document.querySelectorAll("[data-ranking-utility]").forEach(button => button.addEventListener("click", event => {
+      event.preventDefault(); // inside a <summary> this cancels the details toggle; no-op for plain rows
       document.querySelector("#utilitySelect").value = button.dataset.rankingUtility;
       renderEvidence();
       document.querySelector("#evidence").scrollIntoView({ behavior: "smooth" });
     }));
-    if (config.onRanking) config.onRanking(rows, year, () => renderEvidence());
+    if (config.onRanking) config.onRanking(rows, year, () => renderEvidence(), helpers);
   }
 
   function latestObservation(utilityId, indicatorId, year, maxAge) {

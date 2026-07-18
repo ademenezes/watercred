@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="WaterCRED: interactive Philippines utility creditworthiness scenario simulator and evidence-based utility ranking built on a 23-factor workbook model.">
+  <meta name="description" content="WaterCRED Philippines: an evidence-based creditworthiness ranking of Philippine water utilities with a provincial map and full methodology, built on a 23-factor workbook model and COA/LWUA audited financials.">
   <title>WaterCRED · Philippines</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -14,207 +14,140 @@
       <span>WaterCRED <em>Philippines</em></span>
     </a>
     <nav aria-label="Page sections">
-      <a href="#scenario">Scenario</a>
-      <a href="#evidence">Philippines data</a>
-      <a href="#method">Method</a>
+      <a href="#ranking">Ranking</a>
+      <a href="#map">Map</a>
+      <a href="#method">Methodology</a>
     </nav>
-    <div class="country-switch" role="navigation" aria-label="Country">
-      <a href="index.html">Georgia</a>
-      <a href="philippines.html" class="active" aria-current="page">Philippines</a>
-    </div>
   </header>
 
   <main id="top">
-    <section class="hero">
-      <div class="hero-copy">
-        <p class="eyebrow">Interactive creditworthiness lab</p>
-        <h1>Explore the drivers of water utility creditworthiness.</h1>
-        <p class="lede">A transparent simulation of a 23-factor creditworthiness index, seeded with the workbook reference case, PSA's official poverty rate and COA/LWUA portfolio medians — plus an evidence-based creditworthiness ranking of 57 Philippine water districts.</p>
-        <div class="hero-actions">
-          <a class="button primary" href="#scenario">Run the scenario</a>
-          <a class="button ghost" href="#evidence">Inspect the evidence</a>
-        </div>
-      </div>
-      <aside class="hero-note" aria-label="Model status">
-        <span class="status-dot"></span>
-        <div>
-          <strong>Decision-support prototype</strong>
-          <p>Not a credit rating. Assumed inputs must be replaced with utility financial statements before investment use.</p>
-        </div>
-      </aside>
+    <section class="page-intro">
+      <p class="eyebrow">Water utility creditworthiness</p>
+      <h1>Which Philippine water utilities look creditworthy?</h1>
+      <p class="lede">An evidence-based ranking of 519 water utilities scored on the factors their COA/LWUA audited financials support, mapped by province and filterable by official LWUA size category and region. Built on a 23-factor creditworthiness workbook.</p>
     </section>
 
-    <section class="score-shell" aria-labelledby="score-heading">
-      <div class="score-card">
-        <div class="score-ring" id="scoreRing" role="img" aria-label="Creditworthiness score">
-          <div>
-            <span id="scoreValue">53.0</span>
-            <small>/ 100</small>
-          </div>
-        </div>
-        <div class="score-copy">
-          <p class="eyebrow">Simulated index</p>
-          <h2 id="score-heading"><span id="ratingLabel">Below threshold</span> <span class="rating-dot" id="ratingDot"></span></h2>
-          <p id="scoreNarrative">The scenario remains below the provisional creditworthiness threshold, with material constraints and unverified financial inputs.</p>
-          <div class="score-meta">
-            <span><b id="weightedPoints">212</b> / 400 weighted points</span>
-            <span><b id="verifiedCount">6</b> / 23 model inputs evidenced</span>
-            <span><b id="thresholdStatus">7.0 points below</b> provisional threshold (60)</span>
-          </div>
-        </div>
-      </div>
-      <div class="delta-card accent">
-        <p class="eyebrow">Largest upside</p>
-        <strong id="upsideValue">+6.0</strong>
-        <span>potential index points</span>
-        <p id="upsideLabel">Liquidity ratio</p>
-      </div>
-    </section>
-
-    <section class="scenario-section" id="scenario">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">Scenario controls</p>
-          <h2>Move the assumptions. See the consequence.</h2>
-        </div>
-        <div class="scenario-actions">
-          <label class="preset-label" for="presetSelect">Preset</label>
-          <select id="presetSelect">
-            <option value="philippines">Philippines + workbook reference</option>
-            <option value="workbook">Original workbook reference</option>
-            <option value="upside">Illustrative improvement case</option>
-            <option value="stress">Illustrative stress case</option>
-          </select>
-          <button class="button compact ghost" id="resetButton" type="button">Reset</button>
-        </div>
-      </div>
-
-      <div class="notice">
-        <span aria-hidden="true">i</span>
-        <p><strong>Evidence boundary:</strong> poverty is sourced from PSA's 2023 official statistics, and five inputs are seeded from COA/LWUA portfolio medians (O&amp;M coverage, non-revenue water, staff and energy cost shares, collection efficiency). The remaining 17 inputs start from the workbook's example responses and are labeled <em>assumption</em>. The per-utility CSV evidence is shown separately below.</p>
-      </div>
-
-      <div class="simulator-layout">
-        <aside class="category-nav" aria-label="Indicator groups">
-          <button class="category-tab active" data-filter="all" type="button"><span>All factors</span><b>23</b></button>
-          <button class="category-tab" data-filter="context" type="button"><span>Context & operations</span><b>6</b></button>
-          <button class="category-tab" data-filter="costs" type="button"><span>Cost structure</span><b>5</b></button>
-          <button class="category-tab" data-filter="financial" type="button"><span>Financial strength</span><b>7</b></button>
-          <button class="category-tab" data-filter="commercial" type="button"><span>Commercial discipline</span><b>5</b></button>
-          <div class="legend">
-            <span><i class="source-dot evidenced"></i>Evidenced</span>
-            <span><i class="source-dot assumed"></i>Assumption</span>
-          </div>
-        </aside>
-
-        <div>
-          <div class="factor-grid" id="factorGrid"></div>
-          <p class="range-note">Boundary handling follows the workbook labels. Where its bands leave decimal gaps, the demo assigns the value to the adjacent lower score and exposes the resulting band on every control.</p>
-        </div>
-      </div>
-    </section>
-
-    <section class="impact-section">
-      <div class="section-heading compact-heading">
-        <div>
-          <p class="eyebrow">Sensitivity</p>
-          <h2>Where improvement has the most leverage</h2>
-        </div>
-        <p>Maximum score gain if each factor improves to 4/4, holding everything else constant.</p>
-      </div>
-      <div class="impact-list" id="impactList"></div>
-    </section>
-
-    <section class="evidence-section" id="evidence">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">Validated Philippines dataset</p>
-          <h2>Audited water district evidence, utility by utility.</h2>
-        </div>
-        <div class="evidence-controls">
-          <label>Utility
-            <select id="utilitySelect"><option value="ALL">Philippines portfolio</option></select>
-          </label>
-          <label>Year
-            <select id="yearSelect"></select>
-          </label>
-        </div>
-      </div>
-
-      <div class="data-status" id="dataStatus" role="status">Loading philippines_validated.csv…</div>
-      <div class="metric-grid" id="metricGrid"></div>
-      <div class="evidence-foot">
-        <p><strong>Portfolio method:</strong> amounts, connections and population are summed; ratios are connection-weighted when matching connection data exists, otherwise averaged. Statements reported in PHP million are normalized to PHP at load. Missing values remain missing.</p>
-        <p id="evidenceCoverage"></p>
-      </div>
-
-      <div class="ranking-block" aria-labelledby="rankingHeading">
+    <section class="evidence-section" id="ranking" aria-labelledby="rankingHeading">
+      <div class="ranking-block">
         <div class="ranking-heading">
           <div>
             <p class="eyebrow">National comparison</p>
-            <h3 id="rankingHeading">Utility creditworthiness ranking</h3>
+            <h2 id="rankingHeading">Utility creditworthiness ranking</h2>
           </div>
-          <p>Highest to lowest creditworthiness score using the latest validated observations available through the selected year.</p>
+          <p>Highest to lowest creditworthiness using the latest validated observations through the selected year. Expand any row for the factors, values and sources behind the score.</p>
         </div>
+
+        <div class="data-status" id="dataStatus" role="status">Loading philippines_validated.csv…</div>
+
+        <div class="filter-bar" role="group" aria-label="Ranking filters">
+          <label>Size (LWUA)
+            <select id="sizeFilter"></select>
+          </label>
+          <label>Region (admin 1)
+            <select id="regionFilter"></select>
+          </label>
+          <label>Province (admin 2)
+            <select id="provinceFilter"></select>
+          </label>
+          <label>Through year
+            <select id="yearFilter"></select>
+          </label>
+          <button class="button compact ghost" id="filterReset" type="button">Reset filters</button>
+          <span class="filter-count" id="rankingCount"></span>
+        </div>
+
         <div class="ranking-table" role="table" aria-label="Philippines utility creditworthiness ranking">
-          <div class="ranking-row ranking-header" role="row">
+          <div class="ranking-row ranking-header ranking-header-expandable" role="row">
             <span role="columnheader">Rank</span>
-            <span role="columnheader">Utility</span>
+            <span role="columnheader">Utility · province · size</span>
             <span role="columnheader">Creditworthiness score</span>
             <span role="columnheader">Evidence</span>
+            <span role="columnheader" aria-label="Expand"></span>
           </div>
           <div id="rankingBody"></div>
         </div>
-        <p class="ranking-note"><strong>A relative, renormalized indication — not the full 23-factor index and not a credit rating.</strong> Each utility is scored on whichever of the 23 workbook factors its validated data supports, using the workbook's 0–4 bands; weights are renormalized to the available factors (score = Σ points × weight ÷ Σ 4 × weight × 100). At least four evidenced factors are required to rank. Observations more than five years old are excluded, and derived ratios (EBITDA margin, debt to equity, staff per 1,000 connections) only combine same-year financial statements. Liquidity uses current-ratio bands and negative equity scores 0 on leverage — both demo conventions disclosed here.</p>
+
+        <p class="ranking-note"><strong>A relative, renormalized indication — not the full 23-factor index and not a credit rating.</strong> Each utility is scored on whichever of the 23 workbook factors its validated data supports, using the workbook's 0–4 bands; weights are renormalized to the available factors (score = Σ points × weight ÷ Σ 4 × weight × 100). At least four evidenced factors are required to rank. Observations more than five years old are excluded, and derived ratios (EBITDA margin, debt to equity, staff per 1,000 connections) only combine same-year statements. Liquidity uses current-ratio bands and negative equity scores 0 on leverage — both demo conventions. Rank shown is the national position; filters narrow the list without re-ranking.</p>
+
+        <details class="coverage-details">
+          <summary>Indicator coverage behind the ranking</summary>
+          <p id="coverageCaption" class="ranking-hint"></p>
+          <div id="coverageTable"></div>
+          <p class="factor-breakdown-note">A utility whose derived ratio combines rows from two institutions is counted under both, so source splits can sum above the utility count.</p>
+        </details>
       </div>
 
-      <div class="map-block" aria-labelledby="mapHeading">
+      <div class="map-block" id="map" aria-labelledby="mapHeading">
         <div class="ranking-heading">
           <div>
             <p class="eyebrow">Geography</p>
-            <h3 id="mapHeading">District map by rating</h3>
+            <h2 id="mapHeading">Provincial creditworthiness map</h2>
           </div>
-          <p>Each district's municipal boundary colored by its creditworthiness rating through the selected year. Click a district to inspect that utility's evidence.</p>
+          <p>Each province (admin 2) shaded by the median creditworthiness of its ranked utilities, following the filters above. Hover a province for its name; click to filter the ranking to it.</p>
         </div>
         <div class="map-layout">
-          <svg id="phlMap" role="img" aria-label="Map of Philippine water districts colored by creditworthiness rating"></svg>
-          <div class="map-legend" id="mapLegend"></div>
+          <svg id="phlMap" role="img" aria-label="Map of Philippine provinces shaded by median water-utility creditworthiness"></svg>
+          <div class="map-side">
+            <p class="map-readout" id="mapReadout" aria-live="polite">Hover a province to see its name.</p>
+            <div class="map-legend" id="mapLegend"></div>
+          </div>
         </div>
-        <p class="ranking-note">Shapes are the boundaries of each district's host municipality or city (GADM 4.1), not exact service areas; Manila Water is approximated by its NCR east-zone cities. Districts with ambiguous names are placed per LWUA/COA records (Taytay in Palawan; Plaridel and Santa Maria in Bulacan; Buenavista in Agusan del Norte). Country outline: Natural Earth 50m.</p>
+        <p class="ranking-note">Province boundaries: <a href="https://www.geoboundaries.org" target="_blank" rel="noreferrer">geoBoundaries</a> gbOpen PHL ADM2 (CC-BY 4.0), simplified. Utility-to-province assignment is a <strong>compiled, approximate</strong> mapping derived from utility names, the PSGC 2019 gazetteer and LWUA/COA records — not an official geographic field, so a small number of same-name districts may be placed in the wrong province.</p>
       </div>
     </section>
 
-    <section class="method-section" id="method">
-      <div class="method-copy">
-        <p class="eyebrow">Model method</p>
-        <h2>Faithful to the workbook, explicit about its limits.</h2>
-        <p>Each factor receives 0–4 points from the workbook's threshold table. Points are multiplied by fixed weights totaling 100. The index is the weighted total divided by the 400-point maximum, multiplied by 100.</p>
-        <div class="formula"><span>Index</span><b>=</b><span>Σ (factor score × weight)</span><b>÷</b><span>400 × 100</span></div>
-        <p>The labels “Creditworthy”, “Potentially creditworthy”, “Below threshold” and “High concern” are demo conventions because the workbook does not define rating bands or lending cut-offs.</p>
-        <div class="threshold-scale" aria-label="Provisional score interpretation">
-          <div><b>75–100</b><span>Indicatively creditworthy</span></div>
-          <div><b>60–74</b><span>Potentially creditworthy</span></div>
-          <div><b>40–59</b><span>Below threshold</span></div>
-          <div><b>0–39</b><span>High concern</span></div>
+    <section class="method-section method-stack" id="method">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Methodology</p>
+          <h2>How the index and ranking are built.</h2>
         </div>
-        <p><strong>Provisional rule:</strong> 60 is the minimum score indicating potential creditworthiness. At least 70% of model inputs—17 of 23—should also be supported by current evidence before presenting the result as a reliable creditworthiness indication. This is not an agency letter rating.</p>
       </div>
+
+      <div class="method-grid">
+        <div class="method-copy">
+          <p>Each factor receives 0–4 points from the workbook's threshold table. Points are multiplied by fixed weights totaling 100. The full index is the weighted total divided by the 400-point maximum, times 100.</p>
+          <div class="formula"><span>Index</span><b>=</b><span>Σ (factor score × weight)</span><b>÷</b><span>400 × 100</span></div>
+          <p>The <strong>ranking</strong> applies the same bands and weights but renormalizes over only the factors a utility's audited data supports, so utilities with different evidence remain comparable. The labels below are demo conventions — the workbook defines no rating bands or lending cut-offs.</p>
+          <div class="threshold-scale" aria-label="Provisional score interpretation">
+            <div><b>75–100</b><span>Indicatively creditworthy</span></div>
+            <div><b>60–74</b><span>Potentially creditworthy</span></div>
+            <div><b>40–59</b><span>Below threshold</span></div>
+            <div><b>0–39</b><span>High concern</span></div>
+          </div>
+        </div>
+        <div class="method-copy">
+          <h3>Utility size — official LWUA categories</h3>
+          <p>Size uses the Local Water District categories from the DBM/LWUA <em>Revised Manual on Categorization</em> (2011), by number of active service connections:</p>
+          <div class="size-scale" aria-label="LWUA size categories">
+            <div><b>Very large · A</b><span>≥ 30,000 connections</span></div>
+            <div><b>Large · B</b><span>10,000–29,999</span></div>
+            <div><b>Medium · C</b><span>3,000–9,999</span></div>
+            <div><b>Small · D</b><span>&lt; 3,000</span></div>
+          </div>
+          <p>We classify each utility from the median of its reported connection counts (COA/LWUA), which dampens single-year reporting spikes. Only utilities that report connections can be sized; the rest are shown as <em>size unknown</em>.</p>
+          <p><strong>Provisional rule:</strong> 60 is the minimum score indicating potential creditworthiness, and at least 70% of model inputs (17 of 23) should be evidenced before the result is treated as a reliable indication. This is not an agency letter rating.</p>
+        </div>
+      </div>
+
+      <div class="indicator-wrap">
+        <h3>The 23 indicators</h3>
+        <p class="ranking-hint">Definitions, formulas, weights and 0–4 score bands from the source workbook. The nine factors tagged <span class="rank-flag">ranked</span> are those the Philippine audited dataset can currently evidence, so only these drive the ranking above.</p>
+        <div id="indicatorTable"></div>
+      </div>
+
       <div class="method-details">
         <details open>
-          <summary>What comes from the Philippines?</summary>
-          <p>The poverty rate uses PSA's 2023 Full Year Official Poverty Statistics (15.5% of the population). Five simulator inputs are seeded from portfolio medians of the validated dataset. The evidence explorer reads all 1,610 validated observations across 57 water districts, 2009–2024, sourced from COA Annual Audit Reports and LWUA monitoring data.</p>
+          <summary>How is the ranking computed?</summary>
+          <p>Up to nine of the 23 workbook factors can be evidenced per utility: O&amp;M coverage, collection efficiency, non-revenue water, energy and staff cost shares, current liquidity, EBITDA margin (reported, or derived from net income, depreciation, interest and revenue), debt to equity (derived from total liabilities and equity), and staff per 1,000 connections. Each is scored with the workbook's 0–4 bands and weights are renormalized to the factors available. Utilities with fewer than four evidenced factors are listed as unranked. Each row expands to show the exact factors used — value, 0–4 band, weight, data year and source institution.</p>
         </details>
         <details>
-          <summary>How is the ranking computed?</summary>
-          <p>Up to nine of the 23 workbook factors can be evidenced per utility: O&amp;M coverage, collection efficiency, non-revenue water, energy and staff cost shares, current liquidity, EBITDA margin (reported, or derived from net income, depreciation, interest and revenue), debt to equity, and staff per 1,000 connections. Each is scored with the workbook's 0–4 bands and weights are renormalized to the factors available. Utilities with fewer than four evidenced factors are listed as unranked.</p>
+          <summary>What data is behind this?</summary>
+          <p>The evidence base is <code>data/philippines_validated.csv</code>: audited financial and operational observations for 519 water utilities, sourced from COA Annual Audit Reports, COA Annual Financial Reports (water districts), LWUA monitoring data and Manila Water statements. Poverty context uses PSA's 2023 Full Year Official Poverty Statistics (15.5%). Amounts reported in PHP million and volumes in million m³ are normalized at load.</p>
         </details>
         <details>
           <summary>What needs due diligence?</summary>
-          <p>The remaining model inputs need utility-level evidence: debt schedules and service coverage for DSCR, cash reserves, grant dependency, debtor ledgers, billing volumes and tariff-to-cost benchmarks. Audited statements should replace portfolio medians before investment use.</p>
-        </details>
-        <details>
-          <summary>Known workbook ambiguities</summary>
-          <p>The live factor formula produces 49.0 for the workbook example, while a separate static cell reports 48.5. Several bands also meet at the same boundary, the staff table omits 5 staff/1,000 connections, and liquidity is scored with EBITDA-style percentage bands despite being defined as a ratio. The demo uses the reproducible 49.0 result; the Philippines ranking scores liquidity with current-ratio bands instead and documents deterministic boundary rules in the source code.</p>
+          <p>The remaining model inputs need utility-level evidence: debt schedules and service coverage for DSCR, cash reserves, grant dependency, debtor ledgers, billing volumes and tariff-to-cost benchmarks. Audited statements should replace any portfolio assumptions before investment use. The utility-to-province mapping is compiled and approximate.</p>
         </details>
       </div>
     </section>
@@ -222,11 +155,11 @@
 
   <footer>
     <p>WaterCRED · Philippines · July 2026</p>
-    <p>Sources: <a href="https://psa.gov.ph/statistics/poverty" target="_blank" rel="noreferrer">PSA official poverty statistics</a> · source creditworthiness workbook · <a href="https://www.coa.gov.ph/" target="_blank" rel="noreferrer">COA Annual Audit Reports</a> · LWUA monitoring data</p>
+    <p>Sources: <a href="https://psa.gov.ph/statistics/poverty" target="_blank" rel="noreferrer">PSA poverty statistics</a> · <a href="https://www.coa.gov.ph/" target="_blank" rel="noreferrer">COA Annual Audit &amp; Financial Reports</a> · LWUA monitoring data · <a href="https://www.geoboundaries.org" target="_blank" rel="noreferrer">geoBoundaries</a> (CC-BY 4.0) · PSGC 2019</p>
   </footer>
 
   <script src="core.js"></script>
-  <script src="phl-map.js"></script>
+  <script src="phl-geo.js"></script>
   <script src="philippines.js"></script>
 </body>
 </html>

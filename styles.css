@@ -172,8 +172,14 @@ input[type="number"] { width: 78px; padding: 7px; text-align: right; font-varian
 .ranking-row { min-height: 58px; display: grid; grid-template-columns: 55px minmax(190px, 1.5fr) minmax(210px, 2fr) minmax(140px, 0.8fr); align-items: center; gap: 16px; border-bottom: 1px solid #315f66; }
 .ranking-header { min-height: 38px; color: #88aaab; font-size: 0.65rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
 .ranking-rank { color: var(--lime); font-family: Georgia, serif; font-size: 1.25rem; }
+.ranking-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ranking-name b { color: #eef8f5; font-weight: 750; }
+.ranking-name small { color: #9fbdbc; font-size: 0.68rem; }
+/* Georgia ranking (core.js) still renders a button in this cell */
 .ranking-name button { padding: 0; color: #eef8f5; border: 0; background: transparent; cursor: pointer; text-align: left; font-weight: 750; }
 .ranking-name button:hover { color: var(--lime); }
+.size-chip { display: inline-block; margin-left: 2px; padding: 0 5px; color: #0e3a42; background: var(--lime); border-radius: 4px; font-size: 0.6rem; font-weight: 800; vertical-align: middle; }
+.size-chip.unknown { color: #cfe3df; background: #2a5960; }
 .ranking-score { display: grid; grid-template-columns: minmax(90px, 1fr) 45px; align-items: center; gap: 12px; }
 .ranking-bar { height: 8px; overflow: hidden; background: #2a5960; border-radius: 99px; }
 .ranking-bar span { height: 100%; display: block; background: linear-gradient(90deg, var(--lime), var(--teal)); border-radius: inherit; }
@@ -185,9 +191,41 @@ input[type="number"] { width: 78px; padding: 7px; text-align: right; font-varian
 .ranking-note { margin: 18px 0 0; color: #9fbdbc; font-size: 0.7rem; }
 .ranking-note strong { color: #d3e6e2; }
 
+/* Expandable ranking rows (rendered only when the scorer returns factor details) */
+.ranking-hint { margin: -8px 0 14px; color: #9fbdbc; font-size: 0.74rem; }
+.ranking-details { border-bottom: 1px solid #315f66; }
+.ranking-details > summary { list-style: none; }
+.ranking-details > summary::-webkit-details-marker { display: none; }
+summary.ranking-row { cursor: pointer; border-bottom: 0; }
+.ranking-row.expandable, .ranking-header-expandable { grid-template-columns: 55px minmax(190px, 1.5fr) minmax(210px, 2fr) minmax(140px, 0.8fr) 26px; }
+.ranking-toggle { justify-self: end; width: 8px; height: 8px; border-right: 2px solid #88aaab; border-bottom: 2px solid #88aaab; transform: rotate(-45deg); transition: transform 120ms ease; }
+.ranking-details[open] .ranking-toggle { transform: rotate(45deg); }
+summary.ranking-row:hover .ranking-toggle { border-color: var(--lime); }
+
+.factor-breakdown { padding: 4px 0 22px 55px; }
+.factor-breakdown-note { margin: 0 0 12px; color: #9fbdbc; font-size: 0.72rem; }
+.factor-table-wrap { overflow-x: auto; }
+.factor-table { width: 100%; border-collapse: collapse; font-size: 0.72rem; color: #cfe3df; }
+.factor-table th { padding: 6px 14px 6px 0; color: #88aaab; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; text-align: left; border-bottom: 1px solid #3b6870; }
+.factor-table td { padding: 7px 14px 7px 0; border-bottom: 1px solid #2a5960; vertical-align: top; font-variant-numeric: tabular-nums; }
+.factor-table td b { color: white; }
+.factor-table small { color: #9fbdbc; }
+.factor-table tr.factor-missing td { color: #6f9295; font-style: italic; }
+
+.utility-detail { margin-top: 26px; }
+.utility-detail:empty { display: none; }
+.utility-detail h4 { margin: 0 0 4px; color: white; font-family: Georgia, serif; font-size: 1.15rem; font-weight: 400; }
+.utility-detail .factor-breakdown { padding-left: 0; }
+
+.coverage-block { margin-top: 34px; }
+.coverage-block h4 { margin: 0 0 6px; color: white; font-family: Georgia, serif; font-size: 1.15rem; font-weight: 400; }
+.coverage-block .ranking-hint { margin: 0 0 12px; }
+#coverageTable { overflow-x: auto; }
+.coverage-table td:nth-child(4) b { color: var(--lime); }
+
 .map-block { margin-top: 58px; padding-top: 42px; border-top: 1px solid #3b6870; }
-.map-layout { display: flex; align-items: flex-start; justify-content: center; gap: 56px; }
-#phlMap { flex: 0 1 620px; }
+.map-layout { display: flex; align-items: flex-start; justify-content: center; gap: 48px; }
+#phlMap { flex: 0 1 430px; max-width: 430px; }
 .map-land { fill: #2a6570; stroke: #4d838d; stroke-width: 1; }
 .map-district { stroke-width: 4; stroke-linejoin: round; cursor: pointer; transition: stroke 120ms ease; }
 .map-district:hover, .map-district:focus-visible { stroke: white; outline: none; }
@@ -247,7 +285,9 @@ footer a { color: var(--blue); }
   #phlMap { flex: none; width: 100%; }
   .map-legend { position: static; }
   .ranking-row { grid-template-columns: 38px minmax(130px, 1.3fr) minmax(115px, 1fr); gap: 10px; }
-  .ranking-row > :last-child { display: none; }
+  .ranking-row > .ranking-evidence, .ranking-header > :nth-child(4) { display: none; }
+  .ranking-row.expandable, .ranking-header-expandable { grid-template-columns: 38px minmax(130px, 1.3fr) minmax(115px, 1fr) 20px; }
+  .factor-breakdown { padding-left: 0; }
   footer { flex-direction: column; }
 }
 
@@ -262,6 +302,76 @@ footer a { color: var(--blue); }
   .metric-grid { grid-template-columns: 1fr; }
   .control-row { grid-template-columns: minmax(0, 1fr) 70px; }
   input[type="number"] { width: 70px; }
+}
+
+/* ---- Philippines page: intro, filters, choropleth, methodology ---------- */
+.page-intro { max-width: 1184px; margin: 0 auto; padding: 60px max(28px, calc((100vw - 1184px) / 2)) 56px; }
+.page-intro h1 { max-width: 900px; font-size: clamp(2.6rem, 5vw, 4.4rem); }
+.page-intro .lede { margin-bottom: 26px; }
+.intro-note { display: flex; gap: 12px; max-width: 720px; padding: 15px 18px; background: #eef4ef; border: 1px solid rgba(29,113,128,0.16); border-radius: 12px; }
+.intro-note p { margin: 0; color: #536768; font-size: 0.86rem; }
+.intro-note strong { color: var(--ink); }
+.intro-note .status-dot { margin-top: 5px; }
+
+.filter-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-bottom: 26px; padding: 16px; background: rgba(255,255,255,0.05); border: 1px solid #315f66; border-radius: 14px; }
+.filter-bar label { display: grid; gap: 5px; color: #a9c5c5; font-size: 0.7rem; font-weight: 750; }
+.filter-bar select { min-width: 150px; color: #eef8f5; border-color: #417078; background: #194d55; }
+.filter-bar select:hover { border-color: #5b8a92; }
+.filter-bar .button.ghost { color: #dcebe8; border-color: #417078; background: rgba(255,255,255,0.04); }
+.filter-count { margin-left: auto; align-self: center; color: var(--lime); font-size: 0.76rem; font-weight: 700; }
+.ranking-empty { padding: 30px 4px; color: #9fbdbc; font-size: 0.9rem; }
+
+.coverage-details { margin-top: 22px; border-top: 1px solid #315f66; }
+.coverage-details > summary { padding: 16px 0; color: #d3e6e2; cursor: pointer; font-weight: 700; font-size: 0.9rem; }
+.coverage-details .ranking-hint { margin: 0 0 12px; }
+.coverage-details #coverageTable { overflow-x: auto; }
+.coverage-table td:nth-child(4) b { color: var(--lime); }
+
+/* Province choropleth */
+.map-prov { stroke: #0e3a42; stroke-width: 0.6; stroke-linejoin: round; transition: stroke 120ms ease, opacity 120ms ease; }
+.map-prov[data-prov] { cursor: pointer; }
+.map-prov[data-prov]:hover, .map-prov[data-prov]:focus-visible { stroke: #fff; stroke-width: 1.4; outline: none; }
+.map-prov-inert { opacity: 0.45; }
+.map-prov-selected { stroke: #fff; stroke-width: 1.8; }
+.map-side { position: sticky; top: 20px; align-self: flex-start; display: grid; gap: 16px; width: 244px; }
+.map-side .map-legend { position: static; top: auto; padding-top: 0; }
+.map-readout { margin: 0; padding: 12px 14px; min-height: 62px; background: rgba(255,255,255,0.05); border: 1px solid #315f66; border-radius: 12px; color: #9fbdbc; font-size: 0.78rem; line-height: 1.4; }
+.map-readout b { color: #eef8f5; font-size: 0.95rem; }
+.map-readout span { color: #a9c5c5; }
+@media (max-width: 760px) { .map-side { position: static; width: auto; } }
+
+/* Methodology */
+.method-stack { display: block; }
+.method-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-bottom: 20px; }
+.method-copy > p { margin-top: 18px; color: var(--muted); }
+.method-copy h3 { margin: 0 0 6px; font-family: Georgia, serif; font-size: 1.35rem; font-weight: 400; }
+.size-scale { margin-top: 16px; display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.size-scale div { padding: 12px; display: grid; gap: 2px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.size-scale b { color: var(--blue); font-size: 0.9rem; }
+.size-scale span { color: var(--muted); font-size: 0.72rem; }
+
+.indicator-wrap { margin: 46px 0; }
+.indicator-wrap h3 { margin: 0 0 6px; font-family: Georgia, serif; font-size: 1.6rem; font-weight: 400; }
+.indicator-wrap .ranking-hint { color: var(--muted); }
+#indicatorTable { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+.indicator-ref { width: 100%; min-width: 820px; border-collapse: collapse; color: var(--ink); font-size: 0.76rem; }
+.indicator-ref th { padding: 12px 14px; color: var(--muted); font-size: 0.62rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; text-align: left; background: #f1eee6; border-bottom: 1px solid var(--line); position: sticky; top: 0; }
+.indicator-ref td { padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.indicator-ref tr:last-child td { border-bottom: 0; }
+.indicator-ref td b { color: var(--ink); }
+.indicator-ref small { color: var(--muted); line-height: 1.4; }
+.indicator-ref .ind-formula, .indicator-ref .ind-bands { min-width: 190px; }
+.indicator-ref tr.indicator-eligible { background: #f2f8f4; }
+.rank-flag { display: inline-block; margin-left: 4px; padding: 1px 6px; color: #176656; background: #dff3eb; border-radius: 999px; font-size: 0.58rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: middle; }
+
+@media (max-width: 900px) {
+  .method-grid { grid-template-columns: 1fr; gap: 34px; }
+  .filter-count { margin-left: 0; }
+}
+@media (max-width: 760px) {
+  .page-intro { padding: 40px 18px; }
+  .filter-bar select { min-width: 0; width: 100%; }
+  .filter-bar label { flex: 1 1 45%; }
 }
 
 @media (prefers-reduced-motion: reduce) {

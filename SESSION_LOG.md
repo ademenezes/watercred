@@ -70,3 +70,57 @@ Analyze the source creditworthiness workbook and validated Georgia utility datas
 
 - Replaced the map's centroid markers with actual municipal boundary polygons (GADM 4.1 level-2, Douglas-Peucker simplified to ~250 m, stored locally in phl-map.js), colored by rating band; Manila Water approximated by its seven NCR east-zone cities. All 57 districts matched and province-verified.
 - Visibility pass: lighter land fill against the dark evidence section, larger map (620px flex basis), sticky legend, thicker strokes so small municipalities stay visible, hover/focus highlight in white.
+
+## 2026-07-16 (later) — Ranking factor transparency (meeting feedback)
+
+- Feedback addressed (WaterCRED review meeting): show the indicators behind each utility's rank, the absolute values behind each position, which indicators are commonly available (financial vs technical), COA vs LWUA sourcing, sample sizes behind medians, and first-time-user intuitiveness. Pure surfacing change — no scoring rule touched.
+- Each Philippines ranking row is now an expandable `<details>` with a factor-breakdown table: value, 0–4 band points, weight, weighted points, data year, source institution (COA / LWUA / Manila Water) + verification level + derived-ratio note; missing factors listed explicitly. Unranked rows show what evidence exists and how many more factors are needed. Open state survives year changes.
+- Selecting a utility in the evidence explorer renders the same breakdown in a new `#utilityDetail` panel (dropdown, ranking-name click, and map click all route there).
+- Added an "Indicator coverage behind the ranking" table computed at runtime by re-running the scorer's own compute closures over all districts, so counts match ranking semantics exactly (≤5-year recency, same-year derived ratios). At 2023: O&M coverage 34/57, debt/equity 33, employee cost share 26, EBITDA 25 (mostly derived), NRW 21, electricity 14, staff/1,000 10, collection efficiency 7, liquidity 6.
+- Simulator median source labels now carry documented sample sizes (n=36/21/26/17/7).
+- core.js changes are guarded (`row.factors` presence, `#utilityDetail` existence, additive 4th `onRanking` arg) so Georgia renders unchanged. Mobile fix: the `.ranking-row > :last-child { display:none }` rule would have hidden the new chevron — replaced with class-based selectors valid on both pages.
+- Disclosures updated in the same commit: ranking note + "How is the ranking computed?" details (philippines.html), README ranking-method section, this entry.
+
+## 2026-07-17 — Philippines rebuilt: ranking + filters + province map + methodology; Georgia hidden
+
+### Scope (user request)
+Keep only the ranking and the map on the Philippines page; add a methodology + per-indicator explanation; add filters beside the ranking for utility **size** (official PHL/LWUA definition) and **admin geography**; hide Georgia for now. Map delivered as an **admin-2 (province) choropleth** per user follow-up (not admin-1).
+
+### Dataset
+- `data/philippines_validated.csv` was updated upstream: now **52,471 observations · 519 water utilities · 2012–2025** (was 1,610 · 57), almost entirely COA Annual Audit/Financial Reports plus LWUA and Manila Water. Columns `utility_id, utility_name, year, indicator_id, value, unit, source_institution, verification_level` still drive everything.
+
+### Page restructure
+- Removed the scenario simulator, sensitivity chart, and evidence explorer from the Philippines page. Kept the ranking and map, added a methodology section.
+- **`philippines.js` is now a standalone app** (loads `core.js` only for the shared `factors` / `factorDefinitions` / `parseCSV` / `compact` / `clamp`, and `phl-geo.js` for geodata). It no longer calls `core.js` `initApp`. **`core.js` and `georgia.js` were left untouched**, so the hidden Georgia simulator is unchanged (workbook preset re-verified at exactly **49.0**).
+- Performance: observations are indexed per utility at load (`obsByUtil`) and per-year ranking results are cached, so scoring 519 utilities against 52k rows and re-filtering are both instant.
+
+### Filters (beside the ranking)
+- **Size (LWUA):** official Local Water District categories from the DBM/LWUA *Revised Manual on Categorization* (2011) by active service connections — A ≥30,000 (Very large), B ≥10,000 (Large), C ≥3,000 (Medium), D <3,000 (Small). Each utility is classified from the **median** of its reported `OPS_CONNECTIONS_TOTAL` (dampens single-year spikes, e.g. Bayugan/Metro Lipa where population appears mislabeled as connections). Only ~170 of 519 report connections; the rest are "size unknown" (user chose "official only + unknown").
+- **Region (admin 1)** and **Province (admin 2)** dropdowns (province cascades from region); year cut-off dropdown. Rank shown is the national position; filters narrow the list without re-ranking.
+
+### Geography / map
+- Province boundaries from **geoBoundaries gbOpen PHL ADM2 (CC-BY 4.0)**, simplified (Douglas–Peucker ~1 km, 3-decimal quantization, outer rings) into `phl-geo.js` (all 87 provinces, ~6.5k vertices, 133 KB). Replaced `phl-map.js` (the 56 municipal district polygons), which was deleted.
+- **`utility → province → region` mapping (all 519)** is compiled/approximate: built from utility names + IDs matched against the PSGC 2019 gazetteer, with rule-based handling of "METRO/METROPOLITAN/NHA" prefixes, city spellings, "GEN/PRES/STA/STO" abbreviations, and province hints in IDs, plus a hand-checked override table for ~45 genuinely ambiguous same-name districts (disclosed as not an official field). "DAVAO" in PSGC bridges to the geoBoundaries "Davao del Norte" polygon.
+- **Choropleth:** each province shaded by the **median creditworthiness of its ranked utilities**, honoring the active size/region filters; provinces with no ranked utility are grey. Clicking a province filters the ranking to it and syncs the dropdowns.
+
+### Methodology section
+- Index formula + score bands + LWUA size scale + provisional rule.
+- **23-indicator reference table** rendered from `core.js` `factors` + `factorDefinitions` + workbook formulas/sources (from the xlsx): definition, group, formula, weight, 0–4 score bands (reconstructed from each factor's own scoring function), and typical source. The nine ranking-eligible factors are flagged.
+- Kept `debt_equity` as the derived `FIN_TOTAL_LIABILITIES ÷ FIN_EQUITY × 100` (the CSV's `FIN_DEBT_TO_EQUITY` is a bare ratio, e.g. 0.45, which the workbook's percentage bands would misread — so the direct column is intentionally not used).
+
+### Georgia hidden
+- `git mv index.html georgia.html` (preserved, unlinked; its country-switch self-link repointed to `georgia.html`). New `index.html` redirects to `philippines.html` (meta-refresh + `location.replace`). Country switcher removed from the Philippines page.
+
+### Verification (browser, local server)
+- 52,471 obs · 519 utilities load; **165 rank at 2023** (354 unranked); scores span 0–100; no console errors.
+- Size filter (Very large → 19 ranked), region filter (Central Luzon), province cascade, map province-click (Pampanga → 5 ranked, province highlighted), reset, and row expansion (9-factor breakdown) all verified.
+- Map renders all 87 provinces (75 interactive); legend side-by-side at desktop width, stacked on narrow. Indicator table renders 23 rows with correct bands. Georgia regression: workbook preset 49.0, 23 cards, 12 ranking rows, no errors. `/` redirects to the Philippines page.
+
+### Attributions added
+geoBoundaries (CC-BY 4.0) and PSGC 2019 in the page footer, map note, README, and CLAUDE.md.
+
+### Follow-up refinements (same day)
+- **Ranking now lists ranked utilities only** (unranked rows removed); region/province filter options and map interactivity are restricted to provinces/regions with ranked utilities. Count reads "N ranked utilities".
+- **Map made smaller** (SVG flex-basis 620→430 px) with a **hover/focus readout** card beside it (`#mapReadout`, `aria-live`): shows province name · region · median · band · ranked count; resets on mouse-leave. Native `<title>` retained. Only provinces with a ranked utility under the current filters are colour-filled and clickable.
+- **Removed** the intro "Decision-support prototype — not a credit rating" note and the "Known workbook ambiguities" methodology `<details>` (per user request; the disclaimer remains in the ranking note and README).
+- Verified: 165 ranked rows only, no unranked; map readout returns correct values on hover (Abra/Batangas/Cebu/Iloilo/Palawan); no console errors.
