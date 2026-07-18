@@ -124,3 +124,11 @@ geoBoundaries (CC-BY 4.0) and PSGC 2019 in the page footer, map note, README, an
 - **Map made smaller** (SVG flex-basis 620→430 px) with a **hover/focus readout** card beside it (`#mapReadout`, `aria-live`): shows province name · region · median · band · ranked count; resets on mouse-leave. Native `<title>` retained. Only provinces with a ranked utility under the current filters are colour-filled and clickable.
 - **Removed** the intro "Decision-support prototype — not a credit rating" note and the "Known workbook ambiguities" methodology `<details>` (per user request; the disclaimer remains in the ranking note and README).
 - Verified: 165 ranked rows only, no unranked; map readout returns correct values on hover (Abra/Batangas/Cebu/Iloilo/Palawan); no console errors.
+
+## 2026-07-18 — Published to GitHub Pages behind a cosmetic access gate
+
+- Added `gate.js` + an overlay (`#wc-gate`) to `philippines.html` and `georgia.html`: prompts for a shared access password (provided to the team separately — deliberately NOT stored in the repo), checked client-side against a SHA-256 hash and remembered per browser session (`sessionStorage`). A short `<head>` script pre-applies `html.wc-unlocked` so already-unlocked sessions never flash the gate. Gate styles in `styles.css`.
+- **Explicitly a cosmetic gate, not security** (user acknowledged): a public GitHub Pages site serves its source, scripts and `data/*.csv` to anyone, so the gate only deters casual visitors and is bypassable by reading the source or fetching files directly. Real protection would need server-side auth (different host).
+- Added `.nojekyll` so Pages serves every file verbatim.
+- Published: created public repo **ademenezes/watercred**, pushed `main` (needed `http.postBuffer` raised for the 21 MB CSV), enabled GitHub Pages from `main`/`/`. Live at **https://ademenezes.github.io/watercred/** (root redirects to `philippines.html`). Verified all assets return 200 and the gate ships; gate unlock/relock and content render verified on localhost (same secure-context/`crypto.subtle` behavior as Pages HTTPS).
+- Note: the site (incl. the 21 MB CSV and the methodology `.xlsx` workbook) is now public; the methodology is already disclosed on-page, but the workbook can be untracked later if that filename shouldn't be public.
