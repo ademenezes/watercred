@@ -6,8 +6,19 @@
   <meta name="description" content="WaterCRED: interactive Georgia utility creditworthiness scenario simulator based on a 23-factor workbook model.">
   <title>WaterCRED · Georgia</title>
   <link rel="stylesheet" href="styles.css">
+  <script>if(sessionStorage.getItem("watercred_gate_ok")==="1")document.documentElement.classList.add("wc-unlocked");</script>
 </head>
 <body>
+  <div id="wc-gate">
+    <form id="wc-gate-form" autocomplete="off">
+      <span class="brand-mark" aria-hidden="true">W</span>
+      <h2>WaterCRED · Georgia</h2>
+      <p>Password-protected preview. Enter the access password to continue.</p>
+      <input type="password" id="wc-gate-input" placeholder="Password" aria-label="Access password" autocomplete="off" autofocus>
+      <button class="button primary" type="submit">Enter</button>
+      <p id="wc-gate-err" role="alert" aria-live="assertive"></p>
+    </form>
+  </div>
   <header class="topbar">
     <a class="brand" href="#top" aria-label="WaterCRED home">
       <span class="brand-mark" aria-hidden="true">W</span>
@@ -210,6 +221,7 @@
     <p>Sources: <a href="https://www.geostat.ge/en/modules/categories/192/living-conditions" target="_blank" rel="noreferrer">Geostat poverty statistics</a> · source creditworthiness workbook · validated GNERC dataset</p>
   </footer>
 
+  <script src="gate.js"></script>
   <script src="core.js"></script>
   <script src="georgia.js"></script>
 </body>

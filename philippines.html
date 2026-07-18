@@ -6,8 +6,19 @@
   <meta name="description" content="WaterCRED Philippines: an evidence-based creditworthiness ranking of Philippine water utilities with a provincial map and full methodology, built on a 23-factor workbook model and COA/LWUA audited financials.">
   <title>WaterCRED · Philippines</title>
   <link rel="stylesheet" href="styles.css">
+  <script>if(sessionStorage.getItem("watercred_gate_ok")==="1")document.documentElement.classList.add("wc-unlocked");</script>
 </head>
 <body>
+  <div id="wc-gate">
+    <form id="wc-gate-form" autocomplete="off">
+      <span class="brand-mark" aria-hidden="true">W</span>
+      <h2>WaterCRED · Philippines</h2>
+      <p>Password-protected preview. Enter the access password to continue.</p>
+      <input type="password" id="wc-gate-input" placeholder="Password" aria-label="Access password" autocomplete="off" autofocus>
+      <button class="button primary" type="submit">Enter</button>
+      <p id="wc-gate-err" role="alert" aria-live="assertive"></p>
+    </form>
+  </div>
   <header class="topbar">
     <a class="brand" href="#top" aria-label="WaterCRED home">
       <span class="brand-mark" aria-hidden="true">W</span>
@@ -158,6 +169,7 @@
     <p>Sources: <a href="https://psa.gov.ph/statistics/poverty" target="_blank" rel="noreferrer">PSA poverty statistics</a> · <a href="https://www.coa.gov.ph/" target="_blank" rel="noreferrer">COA Annual Audit &amp; Financial Reports</a> · LWUA monitoring data · <a href="https://www.geoboundaries.org" target="_blank" rel="noreferrer">geoBoundaries</a> (CC-BY 4.0) · PSGC 2019</p>
   </footer>
 
+  <script src="gate.js"></script>
   <script src="core.js"></script>
   <script src="phl-geo.js"></script>
   <script src="philippines.js"></script>

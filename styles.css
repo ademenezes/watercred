@@ -378,3 +378,18 @@ footer a { color: var(--blue); }
   html { scroll-behavior: auto; }
   *, *::before, *::after { transition: none !important; }
 }
+
+/* ---- Cosmetic access gate (see gate.js) --------------------------------- */
+html:not(.wc-unlocked):has(#wc-gate) { overflow: hidden; }
+#wc-gate {
+  position: fixed; inset: 0; z-index: 99999; display: grid; place-items: center; overflow: auto; padding: 24px;
+  background: radial-gradient(circle at 82% 0%, rgba(201, 221, 123, 0.28), transparent 22rem), var(--paper);
+}
+html.wc-unlocked #wc-gate { display: none; }
+#wc-gate-form { width: min(410px, 100%); padding: 36px 32px; text-align: center; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+#wc-gate-form .brand-mark { width: 48px; height: 48px; margin: 0 auto 16px; font-size: 1.3rem; }
+#wc-gate-form h2 { margin: 0 0 6px; font-family: Georgia, serif; font-size: 1.5rem; font-weight: 400; letter-spacing: -0.01em; }
+#wc-gate-form > p { margin: 0 0 20px; color: var(--muted); font-size: 0.9rem; }
+#wc-gate-input { width: 100%; margin-bottom: 12px; padding: 12px 14px; text-align: center; color: var(--ink); border: 1px solid var(--line); border-radius: 10px; background: white; }
+#wc-gate-form button { width: 100%; }
+#wc-gate-err { min-height: 1.1em; margin: 12px 0 0; color: var(--red); font-size: 0.82rem; font-weight: 650; }
