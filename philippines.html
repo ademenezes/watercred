@@ -90,7 +90,7 @@
           <div id="rankingBody"></div>
         </div>
 
-        <p class="ranking-note"><strong>A relative, renormalized indication — not the full 23-factor index and not a credit rating.</strong> Each utility is scored on whichever of the 23 workbook factors its validated data supports, using the workbook's 0–4 bands; weights are renormalized to the available factors (score = Σ points × weight ÷ Σ 4 × weight × 100). At least four evidenced factors are required to rank. Observations more than five years old are excluded, and derived ratios (EBITDA margin, debt to equity, staff per 1,000 connections) only combine same-year statements. Liquidity uses current-ratio bands and negative equity scores 0 on leverage — both demo conventions. Rank shown is the national position; filters narrow the list without re-ranking.</p>
+        <p class="ranking-note"><strong>A relative, renormalized indication — not the full 23-factor index and not a credit rating.</strong> Each utility is scored on whichever of the 23 workbook factors its validated data supports, using the workbook's 0–4 bands; weights are renormalized to the available factors (score = Σ points × weight ÷ Σ 4 × weight × 100). At least four evidenced factors are required to rank. Each factor uses the latest validated observation up to the selected year with <strong>no age limit</strong> — the data year behind every factor is disclosed in the row breakdown, so check it before comparing utilities. Derived ratios (EBITDA margin, debt to equity, staff per 1,000 connections) only combine same-year statements. Liquidity uses current-ratio bands and negative equity scores 0 on leverage — both demo conventions. Rank shown is the national position; filters narrow the list without re-ranking.</p>
 
         <details class="coverage-details">
           <summary>Indicator coverage behind the ranking</summary>
@@ -103,7 +103,7 @@
           <summary>Which indicators appear in the source reports?</summary>
           <p id="datasetIndicatorCaption" class="ranking-hint"></p>
           <div id="datasetIndicatorTable"></div>
-          <p class="factor-breakdown-note">Counts cover every validated observation in the dataset across all years, independent of the ≤5-year freshness rule the ranking applies. Indicators tagged <span class="rank-flag">ranking input</span> feed the nine evidence-eligible factors, directly or as components of a derived ratio.</p>
+          <p class="factor-breakdown-note">Counts cover every validated observation in the dataset across all years. Indicators tagged <span class="rank-flag">ranking input</span> feed the thirteen evidence-eligible factors, directly or as components of a derived ratio.</p>
         </details>
       </div>
 
@@ -162,14 +162,15 @@
 
       <div class="indicator-wrap">
         <h3>The 23 indicators</h3>
-        <p class="ranking-hint">Definitions, formulas, weights and 0–4 score bands from the source workbook. The nine factors tagged <span class="rank-flag">ranked</span> are those the Philippine audited dataset can currently evidence, so only these drive the ranking above.</p>
+        <p class="ranking-hint">Definitions, formulas, weights and 0–4 score bands from the source workbook. The thirteen factors tagged <span class="rank-flag">ranked</span> are those the Philippine audited dataset can currently evidence, so only these drive the ranking above.</p>
         <div id="indicatorTable"></div>
       </div>
 
       <div class="method-details">
         <details open>
           <summary>How is the ranking computed?</summary>
-          <p>Up to nine of the 23 workbook factors can be evidenced per utility: O&amp;M coverage, collection efficiency, non-revenue water, energy and staff cost shares, current liquidity, EBITDA margin (reported, or derived from net income, depreciation, interest and revenue), debt to equity (derived from total liabilities and equity), and staff per 1,000 connections. Each is scored with the workbook's 0–4 bands and weights are renormalized to the factors available. Utilities with fewer than four evidenced factors are listed as unranked. Each row expands to show the exact factors used — value, 0–4 band, weight, data year and source institution.</p>
+          <p>Up to thirteen of the 23 workbook factors can be evidenced per utility: O&amp;M coverage, collection efficiency, non-revenue water, energy and staff cost shares, current liquidity, EBITDA margin (reported, or derived from net income, depreciation, interest and revenue), debt to equity (derived from total liabilities and equity), debt to cash available for debt service, debt service coverage ratio, cash reserves (reported cash sufficiency, i.e. cash ÷ OPEX, scored with the workbook's % bands), debtor days (reported accounts receivable ÷ average daily billing), and staff per 1,000 connections. Each is scored with the workbook's 0–4 bands and weights are renormalized to the factors available. Utilities with fewer than four evidenced factors are listed as unranked. Each row expands to show the exact factors used — value, 0–4 band, weight, data year and source institution.</p>
+          <p>Staffing and connection observations pass a plausibility screen before scoring: employee counts must be whole numbers no greater than 5,000 that don't merely repeat the report year, connections-per-staff at most 800, and connection counts whole numbers. A handful of source rows misfile peso amounts or the report year as headcounts; screened-out observations simply leave the factor unevidenced — no substitute value is used. The raw dataset table below still lists every observation as published.</p>
         </details>
         <details>
           <summary>What data is behind this?</summary>
@@ -177,7 +178,7 @@
         </details>
         <details>
           <summary>What needs due diligence?</summary>
-          <p>The remaining model inputs need utility-level evidence: debt schedules and service coverage for DSCR, cash reserves, grant dependency, debtor ledgers, billing volumes and tariff-to-cost benchmarks. Audited statements should replace any portfolio assumptions before investment use. The utility-to-province mapping is compiled and approximate.</p>
+          <p>The remaining model inputs need utility-level evidence: grant dependency, maintenance cost shares, bad-debt provisions, billing volumes and tariff-to-cost benchmarks — and DSCR, debt/CADS, cash sufficiency and debtor days are reported for only a minority of utilities. Audited statements should replace any portfolio assumptions before investment use. The utility-to-province mapping is compiled and approximate.</p>
         </details>
       </div>
     </section>

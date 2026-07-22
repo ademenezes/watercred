@@ -7,7 +7,8 @@
 
 (() => {
   const MIN_RANKED_FACTORS = 4;   // ≥4 evidenced factors required to rank
-  const MAX_AGE = 5;              // observations older than 5 years are excluded
+  // No age limit on evidence: each factor uses the latest observation up to the
+  // selected year, however old. The data year is disclosed per factor.
   const DEFAULT_YEAR = 2025;
   const MIN_YEAR = 2012;          // earlier years are near-empty in the dataset
 
@@ -36,11 +37,12 @@
   const shortInstitution = s => SOURCE_SHORT[s] ?? s;
   const sourceOf = row => ({ institution: row.source_institution, indicator: row.indicator_id, year: row.year, verification: row.verification_level });
 
-  // Latest year ≤ selected year (within MAX_AGE) at which every required
-  // indicator has an observation — derived ratios never mix statement years.
+  // Latest year ≤ selected year at which every required indicator has an
+  // observation — derived ratios never mix statement years.
   // `urows` is the utility's own observations (pre-indexed for speed).
   function latestConsistentSet(urows, requiredIds, optionalIds, year) {
-    for (let y = year; y >= year - MAX_AGE; y--) {
+    const candidateYears = [...new Set(urows.filter(r => r.year <= year).map(r => r.year))].sort((a, b) => b - a);
+    for (const y of candidateYears) {
       const rows = new Map();
       urows.forEach(r => {
         if (r.year === y && !rows.has(r.indicator_id)
@@ -58,7 +60,7 @@
   const setSources = set => [...set.rows.values()].map(sourceOf);
 
   const direct = indicatorId => (utilityId, year, helpers) => {
-    const observation = helpers.latestObservation(utilityId, indicatorId, year, MAX_AGE);
+    const observation = helpers.latestObservation(utilityId, indicatorId, year);
     return observation ? { value: observation.value, years: [observation.year], sources: [sourceOf(observation)] } : null;
   };
 
@@ -86,16 +88,35 @@
     return { value: set.values.get("FIN_TOTAL_LIABILITIES") / equity * 100, years: [set.year], sources: setSources(set), derived: "same-year statements" };
   }
 
+  // Staffing/connection plausibility guard (documented demo convention): a few
+  // source rows misfile peso amounts or the report year as headcounts (Tiaong
+  // 2021 "8,747,272 employees"; Digos 2018–20; Metro Roxas/Penablanca/Reina
+  // Mercedes report the year itself), and one connection count is fractional
+  // (Bayugan 2019). Scoring and size classification skip such observations —
+  // no substitute value is invented; the raw dataset table still shows every
+  // row as published.
+  const MAX_PLAUSIBLE_EMPLOYEES = 5000;      // largest real count nationally: Manila Water ~2,663
+  const MAX_PLAUSIBLE_CONN_PER_STAFF = 800;  // largest credible reported value: ~383
+  const plausibleEmployees = r => Number.isInteger(r.value) && r.value > 0 && r.value <= MAX_PLAUSIBLE_EMPLOYEES && r.value !== r.year;
+  const PLAUSIBILITY = {
+    INST_TOTAL_EMPLOYEES: plausibleEmployees,
+    INST_PERMANENT_EMPLOYEES: plausibleEmployees,
+    INST_PRODUCTIVITY_CONN_PER_STAFF: r => r.value > 0 && r.value <= MAX_PLAUSIBLE_CONN_PER_STAFF,
+    OPS_CONNECTIONS_TOTAL: r => Number.isInteger(r.value)
+  };
+  const plausibleRow = r => (PLAUSIBILITY[r.indicator_id] ?? (() => true))(r);
+
   function staffPerThousand(utilityId, year, helpers) {
-    const uobs = helpers.utilityObs(utilityId);
+    const uobs = helpers.utilityObs(utilityId).filter(plausibleRow);
     for (const employeeId of ["INST_TOTAL_EMPLOYEES", "INST_PERMANENT_EMPLOYEES"]) {
       const set = latestConsistentSet(uobs, [employeeId, "OPS_CONNECTIONS_TOTAL"], [], year);
       if (set && set.values.get("OPS_CONNECTIONS_TOTAL") > 0) {
         return { value: set.values.get(employeeId) / set.values.get("OPS_CONNECTIONS_TOTAL") * 1000, years: [set.year], sources: setSources(set), derived: "employees ÷ connections" };
       }
     }
-    const productivity = direct("INST_PRODUCTIVITY_CONN_PER_STAFF")(utilityId, year, helpers);
-    if (productivity && productivity.value > 0) return { value: 1000 / productivity.value, years: productivity.years, sources: productivity.sources, derived: "1,000 ÷ connections per staff" };
+    const set = latestConsistentSet(uobs, ["INST_PRODUCTIVITY_CONN_PER_STAFF"], [], year);
+    const connPerStaff = set?.values.get("INST_PRODUCTIVITY_CONN_PER_STAFF");
+    if (connPerStaff > 0) return { value: 1000 / connPerStaff, years: [set.year], sources: setSources(set), derived: "1,000 ÷ connections per staff" };
     return null;
   }
 
@@ -109,6 +130,10 @@
     { factorId: "liquidity", compute: direct("FIN_CURRENT_LIQUIDITY"), score: currentRatioScore, kind: "Financial", format: v => `${v.toFixed(2)}×`, unitNote: "current ratio, demo bands" },
     { factorId: "ebitda", compute: ebitdaMargin, kind: "Financial", format: pct1 },
     { factorId: "debt_equity", compute: debtEquity, kind: "Financial", format: pct1 },
+    { factorId: "debt_cash", compute: direct("FIN_DEBT_TO_CADS"), kind: "Financial", format: v => `${v.toFixed(2)}×` },
+    { factorId: "dscr", compute: direct("FIN_DSCR"), kind: "Financial", format: v => `${v.toFixed(2)}×` },
+    { factorId: "cash_reserves", compute: direct("FIN_CASH_SUFFICIENCY"), kind: "Financial", format: pct1, unitNote: "cash ÷ OPEX, workbook % bands" },
+    { factorId: "debtor_days", compute: direct("FIN_ACCOUNTS_RECEIVABLE"), kind: "Commercial", format: v => `${v.toFixed(0)} days` },
     { factorId: "staff", compute: staffPerThousand, kind: "Technical / operational", format: v => `${v.toFixed(1)} / 1,000 conn` }
   ];
   const ELIGIBLE_IDS = new Set(phlFactorInputs.map(e => e.factorId));
@@ -146,9 +171,9 @@
     const ranked = available >= MIN_RANKED_FACTORS;
     const uniqueYears = [...new Set(years)].sort((a,b) => a-b);
     const yearRange = uniqueYears.length ? (uniqueYears.length === 1 ? `Data year ${uniqueYears[0]}` : `Data years ${uniqueYears[0]}–${uniqueYears.at(-1)}`) : "";
-    const confidence = available >= 8 ? "High coverage" : available >= 6 ? "Medium coverage" : available >= MIN_RANKED_FACTORS ? "Low coverage" : "Unranked";
+    const confidence = available >= 10 ? "High coverage" : available >= 7 ? "Medium coverage" : available >= MIN_RANKED_FACTORS ? "Low coverage" : "Unranked";
     const detailNote = ranked
-      ? `Scored on ${available} of 9 evidence-eligible factors (of the 23-factor model): ${points} ÷ ${maxPoints} weighted points × 100 = ${score.toFixed(1)}.`
+      ? `Scored on ${available} of ${phlFactorInputs.length} evidence-eligible factors (of the 23-factor model): ${points} ÷ ${maxPoints} weighted points × 100 = ${score.toFixed(1)}.`
       : `${available} evidenced factor${available === 1 ? "" : "s"} — needs ${MIN_RANKED_FACTORS - available} more to rank. Available evidence is shown below.`;
     return { id: utilityId, name: helpers.utilityName(utilityId), score, available, ranked, yearRange, confidence,
       coverageLabel: `${available}/23 factors`, factors: details, weightedPoints: points, maxWeightedPoints: maxPoints, detailNote };
@@ -172,7 +197,7 @@
   }
   function sizeCategory(utilityId, year) {
     const vals = (obsByUtil.get(utilityId) ?? [])
-      .filter(r => r.indicator_id === "OPS_CONNECTIONS_TOTAL" && r.year <= year && Number.isFinite(r.value))
+      .filter(r => r.indicator_id === "OPS_CONNECTIONS_TOTAL" && r.year <= year && Number.isFinite(r.value) && plausibleRow(r))
       .map(r => r.value).sort((a,b) => a - b);
     if (!vals.length) return null;
     const m = median(vals);
@@ -209,9 +234,9 @@
   const obsByUtil = new Map();          // utility_id -> its own observation rows
   const csvNames = new Map();
   const utilityName = id => csvNames.get(id) || id;
-  function latestObservation(utilityId, indicatorId, year, maxAge) {
+  function latestObservation(utilityId, indicatorId, year) {
     return (obsByUtil.get(utilityId) ?? [])
-      .filter(r => r.indicator_id === indicatorId && r.year <= year && year - r.year <= maxAge)
+      .filter(r => r.indicator_id === indicatorId && r.year <= year)
       .sort((a,b) => b.year - a.year)[0] || null;
   }
   const helpers = { latestObservation, clamp, utilityName, observations: () => observations, utilityObs: id => obsByUtil.get(id) ?? [] };
@@ -256,7 +281,7 @@
           <td><b>${f.points}/4</b> <small>${esc(f.band)}</small></td>
           <td>${f.weight}</td><td>${f.weighted}</td>
           <td>${f.years.join(", ")}</td><td>${esc(f.sourceLabel)}</td></tr>`
-      : `<tr class="factor-missing"><td>${f.name}</td><td colspan="6">no validated observation within 5 years</td></tr>`
+      : `<tr class="factor-missing"><td>${f.name}</td><td colspan="6">no validated observation through ${state.year}</td></tr>`
     ).join("");
     return `<div class="factor-breakdown">
       <p class="factor-breakdown-note">${esc(row.detailNote ?? "")}</p>
@@ -375,7 +400,7 @@
       return { name: factor.name, kind: entry.kind, weight: factor.weight, count, split };
     });
     document.querySelector("#coverageCaption").textContent =
-      `For each of the nine evidence-eligible factors: how many of the ${total} utilities have a usable observation through ${year} (≤5 years old; derived ratios need same-year statements) — the same rule the ranking applies.`;
+      `For each of the ${phlFactorInputs.length} evidence-eligible factors: how many of the ${total} utilities have a usable observation through ${year} (any age; derived ratios need same-year statements) — the same rule the ranking applies.`;
     container.innerHTML = `<table class="factor-table coverage-table">
       <thead><tr><th>Factor</th><th>Type</th><th>Weight</th><th>Utilities with data</th><th>Source split</th></tr></thead>
       <tbody>${rows.map(r => `<tr><td>${r.name}</td><td>${r.kind}</td><td>${r.weight}</td>
@@ -432,14 +457,15 @@
   }
 
   // ---- Dataset indicator commonality (all raw indicators in the reports) ---
-  // Raw CSV indicators that feed the nine ranked factors, directly or as
+  // Raw CSV indicators that feed the ranked factors, directly or as
   // components of a derived ratio (EBITDA, debt/equity, staff density).
   const RANKING_INPUT_IDS = new Set([
     "FIN_COST_COVERAGE", "FIN_COLLECTION_EFFICIENCY", "OPS_NRW_PCT", "FIN_ENERGY_COST_SHARE",
     "FIN_STAFF_COST_SHARE", "FIN_CURRENT_LIQUIDITY", "FIN_EBITDA_MARGIN", "FIN_NET_INCOME",
     "FIN_DEPRECIATION", "FIN_INTEREST_EXPENSE", "FIN_REVENUE", "FIN_NONOP_INCOME",
     "FIN_TOTAL_LIABILITIES", "FIN_EQUITY", "INST_TOTAL_EMPLOYEES", "INST_PERMANENT_EMPLOYEES",
-    "OPS_CONNECTIONS_TOTAL", "INST_PRODUCTIVITY_CONN_PER_STAFF"
+    "OPS_CONNECTIONS_TOTAL", "INST_PRODUCTIVITY_CONN_PER_STAFF",
+    "FIN_DEBT_TO_CADS", "FIN_DSCR", "FIN_CASH_SUFFICIENCY", "FIN_ACCOUNTS_RECEIVABLE"
   ]);
   function renderDatasetIndicators() {
     const container = document.querySelector("#datasetIndicatorTable");
@@ -460,7 +486,7 @@
       <thead><tr><th>Indicator</th><th>Category</th><th>Utilities with it</th><th>Share</th><th>Observations</th><th>Years</th></tr></thead>
       <tbody>${rows.map(([id, e]) => {
         const share = e.utils.size / totalU * 100;
-        return `<tr><td><b>${esc(e.name)}</b>${RANKING_INPUT_IDS.has(id) ? ` <span class="rank-flag" title="Feeds the ranking's nine evidence-eligible factors">ranking input</span>` : ""}<br><small>${esc(id)}</small></td>
+        return `<tr><td><b>${esc(e.name)}</b>${RANKING_INPUT_IDS.has(id) ? ` <span class="rank-flag" title="Feeds the ranking's ${phlFactorInputs.length} evidence-eligible factors">ranking input</span>` : ""}<br><small>${esc(id)}</small></td>
           <td>${esc(e.category)}</td>
           <td><b>${e.utils.size}</b> / ${totalU}</td>
           <td><span class="cov-share"><span style="width:${share.toFixed(1)}%"></span></span> ${share.toFixed(0)}%</td>
@@ -611,7 +637,7 @@
     const rows = lastFiltered.filter(r => r.ranked).sort((a, b) => a.rank - b.rank);
     const round = (v, d) => v == null ? null : Number(v.toFixed(d));
     const ranking = [
-      ["Rank (national)", "Utility ID", "Utility", "Province", "Region", "LWUA size category", "Median connections", "Score (0-100)", "Rating band (demo)", "Evidenced factors (of 9)", "Coverage", "Data years"],
+      ["Rank (national)", "Utility ID", "Utility", "Province", "Region", "LWUA size category", "Median connections", "Score (0-100)", "Rating band (demo)", `Evidenced factors (of ${phlFactorInputs.length})`, "Coverage", "Data years"],
       ...rows.map(r => [r.rank, r.id, r.name, r.provinceName ?? "", r.region, r.size ? `${r.size.name} (${r.size.key})` : "unknown",
         r.size ? r.size.connections : null, round(r.score, 1), bandForScore(r.score).label, r.available, r.confidence, r.yearRange.replace(/^Data years? /, "")])
     ];
@@ -636,7 +662,7 @@
       ["Indicator filter", state.indicators.size ? [...state.indicators].map(id => factorById[id].name).join(", ") : "all indicators"],
       ["Utilities exported", rows.length], [],
       ["A relative, renormalized indication — not the full 23-factor index and not a credit rating."],
-      ["Each utility is scored on the workbook factors its validated data supports (0-4 bands); score = Σ(points × weight) ÷ Σ(4 × weight) × 100. Minimum 4 evidenced factors; observations ≤5 years old; derived ratios combine same-year statements only."],
+      ["Each utility is scored on the workbook factors its validated data supports (0-4 bands); score = Σ(points × weight) ÷ Σ(4 × weight) × 100. Minimum 4 evidenced factors; each factor uses the latest observation up to the selected year with no age limit (data years disclosed per factor); derived ratios combine same-year statements only."],
       ["The Indicator data sheet lists every validated observation up to the selected year for the exported utilities — all indicators, with year, unit, source institution and verification level. Amounts reported as PHP million and volumes as million m³ are normalized to PHP / m³."],
       ["Utility-to-province mapping is compiled and approximate. Sources: COA Annual Audit/Financial Reports, LWUA monitoring data, Manila Water statements."]
     ];

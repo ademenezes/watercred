@@ -12,7 +12,7 @@ An interactive, dependency-free prototype that implements the primary 23-factor 
 - **Export to Excel**: downloads the currently filtered ranking as a real `.xlsx` workbook (generated in the browser, no dependencies) with four sheets — the ranking summary, the per-utility factor detail (value, band, weight, source), the full indicator data (every validated observation up to the selected year for each exported utility: all indicators with value, year, unit, source institution and verification level), and export notes recording the active filters and methodology caveats.
 - **Provincial choropleth**: each province shaded by the median creditworthiness of its ranked utilities, reacting to the filters; click a province to filter the ranking to it.
 - **Data coverage**: alongside the per-factor coverage table, a "which indicators appear in the source reports?" table lists all raw dataset indicators, most common first, with how many of the 519 utilities report each, observation counts and year spans; indicators feeding the ranking are flagged.
-- **Methodology section**: the index formula, score bands, the LWUA size definition, and a reference table of all 23 indicators — definition, formula, weight, 0–4 score bands, and typical source — with the nine ranking-eligible factors flagged.
+- **Methodology section**: the index formula, score bands, the LWUA size definition, and a reference table of all 23 indicators — definition, formula, weight, 0–4 score bands, and typical source — with the thirteen ranking-eligible factors flagged.
 - Per-utility factor breakdowns on every ranking row (value, band, weight, data year, source institution).
 - Responsive, dependency-free interface that runs from a basic local web server.
 
@@ -45,7 +45,7 @@ Each utility is scored on whichever of the 23 workbook factors its validated dat
 score = Σ(points × weight) ÷ Σ(4 × weight) × 100
 ```
 
-Up to nine factors can be evidenced per utility:
+Up to thirteen factors can be evidenced per utility:
 
 | Factor | Source |
 |---|---|
@@ -57,11 +57,15 @@ Up to nine factors can be evidenced per utility:
 | Liquidity | `FIN_CURRENT_LIQUIDITY`, scored with current-ratio bands (demo convention) |
 | EBITDA / revenue | `FIN_EBITDA_MARGIN`, or derived: (net income + depreciation + interest − non-operating income) ÷ revenue |
 | Debt to equity | `FIN_TOTAL_LIABILITIES` ÷ `FIN_EQUITY` × 100; negative equity scores 0 directly |
+| Debt / cash available for debt service | `FIN_DEBT_TO_CADS` (loans payable ÷ CADS, bare ratio) |
+| Debt service coverage ratio | `FIN_DSCR` |
+| Cash reserves | `FIN_CASH_SUFFICIENCY` (cash ÷ OPEX × 100), scored with the workbook's % bands (demo convention) |
+| Debtor days | `FIN_ACCOUNTS_RECEIVABLE` (AR ÷ average daily billing, already in days) |
 | Staff / 1,000 connections | employees ÷ connections, or 1,000 ÷ connections-per-staff |
 
-At least **four** evidenced factors are required to rank. Observations more than five years old (relative to the selected year) are excluded, and derived ratios only combine same-year financial statements (PHP-million rows are normalized to PHP at load). The result is a **relative, renormalized indication**, not the full 23-factor index and not a credit rating. Only **ranked** utilities are listed (those with ≥4 evidenced factors at the selected year); the rest are omitted. Rank shown is the national position; filters narrow the list without re-ranking.
+At least **four** evidenced factors are required to rank. Staffing and connection observations pass a **plausibility screen** before scoring (demo convention): employee counts must be positive whole numbers ≤ 5,000 and must not merely repeat the report year, connections-per-staff ≤ 800, and connection counts whole numbers — this excludes a handful of source rows that misfile peso amounts or the report year as headcounts (e.g. Tiaong 2021, Digos 2018–20, Bayugan 2019). Screened-out observations leave the factor unevidenced; no substitute values are used, and the raw dataset table still shows every row as published. Each factor uses the latest validated observation up to the selected year with **no age limit** (the data year behind every factor is disclosed in the row breakdown and the export), and derived ratios only combine same-year financial statements (PHP-million rows are normalized to PHP at load). The result is a **relative, renormalized indication**, not the full 23-factor index and not a credit rating. Only **ranked** utilities are listed (those with ≥4 evidenced factors at the selected year); the rest are omitted. Rank shown is the national position; filters narrow the list without re-ranking.
 
-Every ranking row expands to a per-utility factor breakdown: absolute value, 0–4 band points, weight, weighted points, data year, and source institution (COA, LWUA or Manila Water, with verification level and a derived-ratio note where applicable); unavailable factors are listed as missing. The collapsible indicator-coverage table beneath the ranking reports, for each of the nine evidence-eligible factors, how many utilities have a usable observation at the selected year — computed with the exact recency and same-year rules the ranking applies — split by source institution.
+Every ranking row expands to a per-utility factor breakdown: absolute value, 0–4 band points, weight, weighted points, data year, and source institution (COA, LWUA or Manila Water, with verification level and a derived-ratio note where applicable); unavailable factors are listed as missing. The collapsible indicator-coverage table beneath the ranking reports, for each of the thirteen evidence-eligible factors, how many utilities have a usable observation at the selected year — computed with the exact same-year rules the ranking applies — split by source institution.
 
 ## Utility size — official LWUA categories
 
