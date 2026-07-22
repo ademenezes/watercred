@@ -237,3 +237,9 @@ geoBoundaries (CC-BY 4.0) and PSGC 2019 in the page footer, map note, README, an
 ### PPT deck gains an overview slide (same day)
 - The PowerPoint export now inserts an **overview slide** between the title and the profiles: "The 10 utilities in this deck" with a 5-column table (utility, province, region by number, LWUA size, connections) in the same order as the following slides — still no scores/ranks printed. Deck is now 13 slides.
 - Verified via in-browser export + python-pptx: slide 2 table is 11×5 with correct first row (Claveria WD · Cagayan · Region II · Small (D) · 1,319); rating-info regex sweep still finds nothing; 243 KB; no console errors.
+
+### Exports now state their exact selection criteria (same day)
+- New `filterConditionLines()` spells out **every** filter dimension — set or unset ("no filter — all sizes") — including the through-year/no-age-limit rule and the required-indicators semantics.
+- **Excel**: both data sheets gained a styled selection banner row above the header ("Selection: 5 of 252 ranked utilities · Search: "cebu" · through 2025 · generated <date> — full criteria on the Export notes sheet"); `sheetXML` learned `headerRow` so the header/freeze/autofilter shifted to row 2 correctly. Export notes now itemizes the six criteria lines plus a Result row (exported / ranked nationally / dataset size, ranked-only caveat).
+- **PowerPoint**: the title slide now carries a "SELECTION CRITERIA — how this list was generated" block with all six lines and "The N highest-placed of M utilities matching the selection below"; the overview slide references the criteria slide. Utility count line removed in favour of the explicit counts.
+- Verified with search "cebu" (5 of 252): xlsx banner bold/teal on A1, header at row 2, autofilter A2:AQ7, freeze A3, notes rows itemized; pptx title slide shows all six criteria lines and correct counts; deck correctly sized at 8 slides (5 profiles). No console errors.

@@ -678,20 +678,23 @@
   const colLetter = i => { let s = ""; i++; while (i) { s = String.fromCharCode(64 + ((i - 1) % 26 + 1)) + s; i = Math.floor((i - 1) / 26); } return s; };
   const XSTYLE = { header: 1, int: 2, dec: 3, title: 4 };
   function sheetXML(rows, opts = {}) {
+    const hr = opts.headerRow ?? 0;   // rows above hr are banner rows (title style)
     const fmtStyle = ci => opts.fmt?.[ci] === "i" ? XSTYLE.int : opts.fmt?.[ci] === "d" ? XSTYLE.dec : 0;
+    const styleFor = (ri, ci) => opts.header && ri === hr ? XSTYLE.header
+      : opts.title && ri === 0 && ci === 0 && (!opts.header || hr > 0) ? XSTYLE.title
+      : fmtStyle(ci);
     const cellXML = (v, s) => v == null || v === ""
       ? (s ? `<c s="${s}"/>` : "<c/>")
       : typeof v === "number" && Number.isFinite(v)
         ? `<c t="n"${s ? ` s="${s}"` : ""}><v>${v}</v></c>`
         : `<c t="inlineStr"${s ? ` s="${s}"` : ""}><is><t xml:space="preserve">${xmlEsc(v)}</t></is></c>`;
-    const body = rows.map((r, ri) => `<row>${r.map((v, ci) =>
-      cellXML(v, opts.header && ri === 0 ? XSTYLE.header : opts.title && ri === 0 && ci === 0 ? XSTYLE.title : fmtStyle(ci))).join("")}</row>`).join("");
+    const body = rows.map((r, ri) => `<row>${r.map((v, ci) => cellXML(v, styleFor(ri, ci))).join("")}</row>`).join("");
     const nCols = Math.max(1, ...rows.map(r => r.length));
     return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${
-      opts.freeze ? `<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>` : ""}${
+      opts.freeze ? `<sheetViews><sheetView workbookViewId="0"><pane ySplit="${hr + 1}" topLeftCell="A${hr + 2}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>` : ""}${
       opts.widths ? `<cols>${opts.widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("")}</cols>` : ""}<sheetData>${body}</sheetData>${
-      opts.filter ? `<autoFilter ref="A1:${colLetter(nCols - 1)}${rows.length}"/>` : ""}</worksheet>`;
+      opts.filter ? `<autoFilter ref="A${hr + 1}:${colLetter(nCols - 1)}${rows.length}"/>` : ""}</worksheet>`;
   }
   // Fixed style table: 0 default · 1 teal header · 2 #,##0 · 3 #,##0.00 · 4 title.
   const XLSX_STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -725,6 +728,18 @@
     if (state.indicators.size) lines.push(`Required indicators: ${[...state.indicators].map(id => factorById[id].name).join(", ")}`);
     return lines;
   }
+  // Every filter dimension spelled out, including the unset ones — so an
+  // exported file always states exactly how its list was produced.
+  function filterConditionLines() {
+    return [
+      `Through year: ${state.year} (each factor uses the latest observation ≤ this year, no age limit)`,
+      `Size (LWUA): ${state.sizes.size ? [...state.sizes].map(k => k === "unknown" ? "size unknown" : `category ${k}`).join(", ") : "no filter — all sizes"}`,
+      `Region: ${state.regions.size ? [...state.regions].map(regionLabel).join(", ") : "no filter — all regions"}`,
+      `Province: ${state.provinces.size ? [...state.provinces].map(p => PHL_PROVINCE_META[p]?.name ?? p).join(", ") : "no filter — all provinces"}`,
+      `Search text: ${state.search ? `"${state.search}"` : "none"}`,
+      `Required indicators (utility must evidence every one): ${state.indicators.size ? [...state.indicators].map(id => factorById[id].name).join(", ") : "none — all indicators"}`
+    ];
+  }
   const rankedFiltered = () => lastFiltered.filter(r => r.ranked).sort((a, b) => a.rank - b.rank);
   const download = (blob, filename) => {
     const a = document.createElement("a");
@@ -737,6 +752,9 @@
   function exportExcel() {
     const rows = rankedFiltered();
     const round = (v, d) => v == null ? null : Number(v.toFixed(d));
+    const totalRanked = resultsFor(state.year).filter(x => x.ranked).length;
+    const generated = new Date().toISOString().slice(0, 10);
+    const selectionLine = `Selection: ${rows.length} of ${totalRanked} ranked utilities · ${activeFilterLines().join(" · ") || "no filters applied"} · through ${state.year} · generated ${generated} — full criteria on the Export notes sheet`;
     // One wide, filterable sheet: utility metadata + key financials + every
     // factor as a value/points column pair (full provenance in Indicator data).
     const header = ["Rank", "Utility ID", "Utility", "Province", "Region", "LWUA size", "Median connections",
@@ -746,7 +764,7 @@
     const fmt = [null, null, null, null, null, null, "i", "d", null, null, null,
       "i", "i", "i", "i", "i", null, ...phlFactorInputs.flatMap(() => ["d", null])];
     const widths = [7, 26, 34, 16, 26, 18, 13, 11, 28, 10, 15, 15, 15, 15, 15, 15, 12, ...phlFactorInputs.flatMap(() => [13, 8])];
-    const ranking = [header, ...rows.map(r => {
+    const ranking = [[selectionLine], header, ...rows.map(r => {
       const kf = KEY_FINANCIALS.map(k => latestObservation(r.id, k.id, state.year));
       const kfYears = [...new Set(kf.filter(Boolean).map(o => o.year))].sort((a, b) => a - b);
       return [r.rank, r.id, r.name, r.provinceName ?? "", r.region ? regionLabel(r.region) : "", r.size ? `${r.size.name} (${r.size.key})` : "unknown",
@@ -760,7 +778,8 @@
         })];
     })];
     // Every validated observation (≤ through-year) behind the exported utilities.
-    const indicatorData = [["Rank", "Utility ID", "Utility", "Indicator ID", "Indicator", "Category", "Year", "Value", "Unit", "Source institution", "Verification"]];
+    const indicatorData = [[selectionLine],
+      ["Rank", "Utility ID", "Utility", "Indicator ID", "Indicator", "Category", "Year", "Value", "Unit", "Source institution", "Verification"]];
     rows.forEach(r => (obsByUtil.get(r.id) ?? [])
       .filter(o => o.year <= state.year)
       .sort((a, b) => a.indicator_id.localeCompare(b.indicator_id) || b.year - a.year)
@@ -768,19 +787,19 @@
         o.year, Number.isFinite(o.value) ? o.value : null, o.unit || "", shortInstitution(o.source_institution), o.verification_level || ""])));
     const filterDesc = [
       ["WaterCRED · Philippines — filtered ranking export"], [],
-      ["Exported", new Date().toISOString().slice(0, 10)],
-      ["Through year", state.year],
-      ["Active filters", activeFilterLines().join(" · ") || "none (all utilities)"],
-      ["Utilities exported", rows.length], [],
+      ["Generated", generated],
+      ["Selection criteria", "The exact filter state on the WaterCRED page that produced this workbook:"],
+      ...filterConditionLines().map(l => ["", l]),
+      ["Result", `${rows.length} utilities exported — of ${totalRanked} ranked nationally at ${state.year}, from 519 utilities in the dataset. Only ranked utilities (≥4 evidenced factors) are exported.`], [],
       ["A relative, renormalized indication — not the full 23-factor index and not a credit rating."],
       ["Each utility is scored on the workbook factors its validated data supports (0-4 bands); score = Σ(points × weight) ÷ Σ(4 × weight) × 100. Minimum 4 evidenced factors; each factor uses the latest observation up to the selected year with no age limit (data years disclosed per factor); derived ratios combine same-year statements only."],
       ["The Ranking sheet holds one row per utility: key financials (absolute PHP, context only — not scored) and each factor's value and 0-4 points. The Indicator data sheet lists every validated observation up to the selected year for the exported utilities, with year, unit, source institution and verification level. Amounts reported as PHP million and volumes as million m³ are normalized to PHP / m³."],
       ["Utility-to-province mapping is compiled and approximate. Sources: COA Annual Audit/Financial Reports, LWUA monitoring data, Manila Water statements."]
     ];
     const blob = workbookBlob([
-      { name: "Ranking", rows: ranking, opts: { header: true, freeze: true, filter: true, fmt, widths } },
-      { name: "Indicator data", rows: indicatorData, opts: { header: true, freeze: true, filter: true, widths: [7, 26, 34, 30, 34, 13, 8, 16, 10, 20, 13] } },
-      { name: "Export notes", rows: filterDesc, opts: { title: true, widths: [22, 90] } }
+      { name: "Ranking", rows: ranking, opts: { header: true, headerRow: 1, title: true, freeze: true, filter: true, fmt, widths } },
+      { name: "Indicator data", rows: indicatorData, opts: { header: true, headerRow: 1, title: true, freeze: true, filter: true, widths: [7, 26, 34, 30, 34, 13, 8, 16, 10, 20, 13] } },
+      { name: "Export notes", rows: filterDesc, opts: { title: true, widths: [22, 110] } }
     ]);
     download(blob, `watercred_philippines_${state.year}.xlsx`);
   }
@@ -843,22 +862,22 @@
     return zipStore(files, "application/vnd.openxmlformats-officedocument.presentationml.presentation");
   }
 
-  function pptTitleSlide(count) {
-    const filters = activeFilterLines();
+  function pptTitleSlide(count, totalRanked) {
     return pptRect(0, 0, 13.333, 7.5, PPTC.dark)
       + pptRect(0, 7.26, 13.333, 0.24, PPTC.lime)
-      + pptText(0.9, 2.0, 11.5, 2.0, [
+      + pptText(0.9, 1.35, 11.5, 1.9, [
         { text: "WATERCRED · PHILIPPINES", sz: 15, b: true, color: PPTC.lime },
-        { text: "Water utility profiles", sz: 44, b: true, color: "FFFFFF", spcB: 8 }
+        { text: "Water utility profiles", sz: 42, b: true, color: "FFFFFF", spcB: 8 },
+        { text: `The ${count} highest-placed of ${totalRanked} utilities matching the selection below · audited data through ${state.year}`, sz: 16, color: PPTC.pale, spcB: 8 }
       ])
-      + pptText(0.9, 4.15, 11.5, 2.6, [
-        { text: `${count} ${count === 1 ? "utility" : "utilities"} · audited financial and operational data through ${state.year}`, sz: 17, color: PPTC.pale },
-        ...(filters.length ? filters.map(t => ({ text: t, sz: 12.5, color: PPTC.light, spcB: 4 })) : [{ text: "Selection: all utilities, no filters applied", sz: 12.5, color: PPTC.light, spcB: 4 }]),
+      + pptText(0.9, 3.6, 11.5, 3.5, [
+        { text: "SELECTION CRITERIA — how this list was generated", sz: 11.5, b: true, color: PPTC.lime },
+        ...filterConditionLines().map(t => ({ text: t, sz: 12, color: PPTC.light, spcB: 4 })),
         { text: `Compiled ${new Date().toISOString().slice(0, 10)} · COA Annual Audit/Financial Reports · LWUA · Manila Water`, sz: 10.5, color: PPTC.faint, spcB: 10 }
       ]);
   }
   // Overview slide: the utilities in the deck, in slide order — no rating info.
-  function pptOverviewSlide(top) {
+  function pptOverviewSlide(top, totalRanked) {
     const trows = [
       { h: 0.34, fill: PPTC.dark, cells: ["Utility", "Province", "Region", "LWUA size", "Connections"].map((t, i) =>
         ({ text: t, sz: 11, b: true, color: "FFFFFF", align: i === 4 ? "r" : "l" })) },
@@ -873,7 +892,7 @@
     return pptRect(0, 0, 13.333, 7.5, PPTC.cream)
       + pptRect(0, 0, 13.333, 0.16, PPTC.dark)
       + pptText(0.9, 0.52, 11.5, 0.68, [{ text: `The ${top.length} utilities in this deck`, sz: 26, b: true, color: PPTC.dark }])
-      + pptText(0.9, 1.18, 11.5, 0.4, [{ text: `One profile slide per utility follows, in the same order. Audited data through ${state.year}.`, sz: 12, color: PPTC.muted }])
+      + pptText(0.9, 1.18, 11.5, 0.4, [{ text: `The ${top.length} highest-placed of ${totalRanked} utilities matching the selection criteria on the previous slide. One profile slide per utility follows, in the same order. Audited data through ${state.year}.`, sz: 12, color: PPTC.muted }])
       + pptTable(0.9, 1.72, 11.5, [0.34, 0.19, 0.23, 0.14, 0.10], trows);
   }
   function pptUtilitySlide(r) {
@@ -929,8 +948,9 @@
   function exportPPT() {
     const top = rankedFiltered().slice(0, 10);
     if (!top.length) return;
+    const totalRanked = resultsFor(state.year).filter(x => x.ranked).length;
     pptShapeId = 2;
-    const slides = [pptTitleSlide(top.length), pptOverviewSlide(top), ...top.map(pptUtilitySlide), pptNotesSlide()];
+    const slides = [pptTitleSlide(top.length, totalRanked), pptOverviewSlide(top, totalRanked), ...top.map(pptUtilitySlide), pptNotesSlide()];
     download(pptxBlob(slides), `watercred_utilities_${state.year}.pptx`);
   }
 
