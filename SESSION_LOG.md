@@ -233,3 +233,7 @@ geoBoundaries (CC-BY 4.0) and PSGC 2019 in the page footer, map note, README, an
 ### Verification
 - Node harness (writer code extracted verbatim from `philippines.js`): xlsx opens in openpyxl with **zero warnings** — header bold + FF1D7180 fill, freeze A2, autofilter ref, number formats, widths all confirmed; pptx opens in python-pptx — correct 13.33×7.5in size, shapes, escaped text, table cells.
 - Real browser exports at 2025 defaults: xlsx 19.15 MB in ~2.2 s; pptx 219 KB in 20 ms. The real deck (base64'd out of the browser) has 12 slides — title, 10 utility profiles (e.g. Claveria WD with 6-row indicator table), notes — and a regex sweep over every text frame and table cell found **zero occurrences of score/points/band/rating/rank**. No console errors.
+
+### PPT deck gains an overview slide (same day)
+- The PowerPoint export now inserts an **overview slide** between the title and the profiles: "The 10 utilities in this deck" with a 5-column table (utility, province, region by number, LWUA size, connections) in the same order as the following slides — still no scores/ranks printed. Deck is now 13 slides.
+- Verified via in-browser export + python-pptx: slide 2 table is 11×5 with correct first row (Claveria WD · Cagayan · Region II · Small (D) · 1,319); rating-info regex sweep still finds nothing; 243 KB; no console errors.

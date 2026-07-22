@@ -857,6 +857,25 @@
         { text: `Compiled ${new Date().toISOString().slice(0, 10)} · COA Annual Audit/Financial Reports · LWUA · Manila Water`, sz: 10.5, color: PPTC.faint, spcB: 10 }
       ]);
   }
+  // Overview slide: the utilities in the deck, in slide order — no rating info.
+  function pptOverviewSlide(top) {
+    const trows = [
+      { h: 0.34, fill: PPTC.dark, cells: ["Utility", "Province", "Region", "LWUA size", "Connections"].map((t, i) =>
+        ({ text: t, sz: 11, b: true, color: "FFFFFF", align: i === 4 ? "r" : "l" })) },
+      ...top.map((r, i) => ({ h: 0.42, fill: i % 2 ? PPTC.zebra : "FFFFFF", cells: [
+        { text: r.name, sz: 11.5, b: true, color: PPTC.ink },
+        { text: r.provinceName ?? "—", sz: 11, color: PPTC.muted },
+        { text: r.region ? regionLabel(r.region) : "—", sz: 11, color: PPTC.muted },
+        { text: r.size ? `${r.size.name} (${r.size.key})` : "unknown", sz: 11, color: PPTC.muted },
+        { text: r.size ? Math.round(r.size.connections).toLocaleString() : "—", sz: 11, color: PPTC.muted, align: "r" }
+      ] }))
+    ];
+    return pptRect(0, 0, 13.333, 7.5, PPTC.cream)
+      + pptRect(0, 0, 13.333, 0.16, PPTC.dark)
+      + pptText(0.9, 0.52, 11.5, 0.68, [{ text: `The ${top.length} utilities in this deck`, sz: 26, b: true, color: PPTC.dark }])
+      + pptText(0.9, 1.18, 11.5, 0.4, [{ text: `One profile slide per utility follows, in the same order. Audited data through ${state.year}.`, sz: 12, color: PPTC.muted }])
+      + pptTable(0.9, 1.72, 11.5, [0.34, 0.19, 0.23, 0.14, 0.10], trows);
+  }
   function pptUtilitySlide(r) {
     const place = [r.provinceName, r.region ? regionLabel(r.region) : null].filter(Boolean).join(" · ");
     const sizeLine = r.size ? `${r.size.name} utility (LWUA category ${r.size.key}) · ${Math.round(r.size.connections).toLocaleString()} connections` : "size unknown";
@@ -911,7 +930,7 @@
     const top = rankedFiltered().slice(0, 10);
     if (!top.length) return;
     pptShapeId = 2;
-    const slides = [pptTitleSlide(top.length), ...top.map(pptUtilitySlide), pptNotesSlide()];
+    const slides = [pptTitleSlide(top.length), pptOverviewSlide(top), ...top.map(pptUtilitySlide), pptNotesSlide()];
     download(pptxBlob(slides), `watercred_utilities_${state.year}.pptx`);
   }
 
