@@ -319,13 +319,30 @@ footer a { color: var(--blue); }
 .filter-bar select:hover { border-color: #5b8a92; }
 .filter-bar .button.ghost { color: #dcebe8; border-color: #417078; background: rgba(255,255,255,0.04); }
 .filter-count { margin-left: auto; align-self: center; color: var(--lime); font-size: 0.76rem; font-weight: 700; }
+.filter-bar input[type="search"] { min-width: 180px; padding: 9px 12px; color: #eef8f5; border: 1px solid #417078; background: #194d55; border-radius: 10px; }
+.filter-bar input[type="search"]::placeholder { color: #86a8a9; }
+.filter-bar input[type="search"]:hover { border-color: #5b8a92; }
+.filter-label { display: grid; gap: 5px; color: #a9c5c5; font-size: 0.7rem; font-weight: 750; }
+.multiselect { position: relative; }
+.multiselect > summary { list-style: none; display: block; min-width: 170px; padding: 9px 30px 9px 12px; color: #eef8f5; border: 1px solid #417078; background: #194d55; border-radius: 10px; cursor: pointer; font-size: 1rem; font-weight: 400; white-space: nowrap; position: relative; }
+.multiselect > summary::-webkit-details-marker { display: none; }
+.multiselect > summary::after { content: "▾"; position: absolute; right: 11px; top: 50%; transform: translateY(-50%); color: #a9c5c5; font-size: 0.7rem; }
+.multiselect > summary:hover { border-color: #5b8a92; }
+.multiselect[open] > summary { border-color: #5b8a92; }
+.multiselect-panel { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; min-width: 260px; max-height: 300px; overflow: auto; padding: 12px 14px; display: grid; gap: 8px; background: #14444c; border: 1px solid #417078; border-radius: 12px; box-shadow: 0 14px 34px rgba(0,0,0,0.35); }
+.multiselect-panel label { display: flex; gap: 9px; align-items: center; color: #dcebe8; font-size: 0.78rem; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.multiselect-panel input[type="checkbox"] { accent-color: var(--lime); }
+.multiselect-hint { padding-bottom: 4px; color: #9fbdbc; font-size: 0.68rem; border-bottom: 1px solid #315f66; }
 .ranking-empty { padding: 30px 4px; color: #9fbdbc; font-size: 0.9rem; }
 
 .coverage-details { margin-top: 22px; border-top: 1px solid #315f66; }
 .coverage-details > summary { padding: 16px 0; color: #d3e6e2; cursor: pointer; font-weight: 700; font-size: 0.9rem; }
 .coverage-details .ranking-hint { margin: 0 0 12px; }
-.coverage-details #coverageTable { overflow-x: auto; }
+.coverage-details #coverageTable, .coverage-details #datasetIndicatorTable { overflow-x: auto; }
 .coverage-table td:nth-child(4) b { color: var(--lime); }
+.dataset-ind-table td:nth-child(3) b { color: var(--lime); }
+.cov-share { display: inline-block; width: 74px; height: 7px; margin-right: 6px; vertical-align: middle; background: rgba(255,255,255,0.12); border-radius: 999px; overflow: hidden; }
+.cov-share span { display: block; height: 100%; background: var(--lime); border-radius: 999px; }
 
 /* Province choropleth */
 .map-prov { stroke: #0e3a42; stroke-width: 0.6; stroke-linejoin: round; transition: stroke 120ms ease, opacity 120ms ease; }
@@ -370,8 +387,8 @@ footer a { color: var(--blue); }
 }
 @media (max-width: 760px) {
   .page-intro { padding: 40px 18px; }
-  .filter-bar select { min-width: 0; width: 100%; }
-  .filter-bar label { flex: 1 1 45%; }
+  .filter-bar select, .filter-bar input[type="search"], .multiselect > summary { min-width: 0; width: 100%; }
+  .filter-bar label, .filter-bar .filter-label { flex: 1 1 45%; }
 }
 
 @media (prefers-reduced-motion: reduce) {

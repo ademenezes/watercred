@@ -8,7 +8,7 @@
 (() => {
   const MIN_RANKED_FACTORS = 4;   // ≥4 evidenced factors required to rank
   const MAX_AGE = 5;              // observations older than 5 years are excluded
-  const DEFAULT_YEAR = 2023;
+  const DEFAULT_YEAR = 2025;
   const MIN_YEAR = 2012;          // earlier years are near-empty in the dataset
 
   // Manila Water reports some statements in PHP million / million m³; normalize
@@ -132,6 +132,7 @@
       const institutions = [...new Set(result.sources.map(s => shortInstitution(s.institution)))];
       return {
         factorId: entry.factorId, name: factor.name, weight: factor.weight, available: true,
+        value: hasValue ? result.value : null,
         formatted: hasValue ? entry.format(result.value) : "—",
         points: factorPoints, band, weighted: factorPoints * factor.weight,
         years: [...new Set(result.years)], institutions,
@@ -215,7 +216,7 @@
   }
   const helpers = { latestObservation, clamp, utilityName, observations: () => observations, utilityObs: id => obsByUtil.get(id) ?? [] };
 
-  const state = { year: DEFAULT_YEAR, size: "all", region: "all", province: "all" };
+  const state = { year: DEFAULT_YEAR, size: "all", region: "all", province: "all", search: "", indicators: new Set() };
   const resultCache = new Map();
 
   function resultsFor(year) {
@@ -238,6 +239,11 @@
   const sizeOK = r => state.size === "all" || (state.size === "unknown" ? !r.size : r.size?.key === state.size);
   const regionOK = r => state.region === "all" || r.region === state.region;
   const provinceOK = r => state.province === "all" || r.province === state.province;
+  const searchOK = r => !state.search
+    || [r.name, r.id, r.provinceName, r.region].some(s => s && s.toLowerCase().includes(state.search));
+  // Indicator filter: utility must have evidence for EVERY selected factor.
+  const indicatorsOK = r => !state.indicators.size
+    || [...state.indicators].every(id => r.factors.find(f => f.factorId === id)?.available);
 
   const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -414,13 +420,73 @@
     document.querySelector("#provinceFilter").value = state.province;
   }
 
+  let lastFiltered = [];   // rows currently shown in the ranking — what Export downloads
   function renderAll() {
     const results = resultsFor(state.year);
-    const geoFiltered = results.filter(r => sizeOK(r) && regionOK(r)); // map ignores province filter
+    const geoFiltered = results.filter(r => sizeOK(r) && regionOK(r) && searchOK(r) && indicatorsOK(r)); // map ignores province filter
     const listFiltered = geoFiltered.filter(provinceOK);
+    lastFiltered = listFiltered;
     renderRanking(listFiltered);
     renderChoropleth(geoFiltered);
     renderCoverage(results, state.year);
+  }
+
+  // ---- Dataset indicator commonality (all raw indicators in the reports) ---
+  // Raw CSV indicators that feed the nine ranked factors, directly or as
+  // components of a derived ratio (EBITDA, debt/equity, staff density).
+  const RANKING_INPUT_IDS = new Set([
+    "FIN_COST_COVERAGE", "FIN_COLLECTION_EFFICIENCY", "OPS_NRW_PCT", "FIN_ENERGY_COST_SHARE",
+    "FIN_STAFF_COST_SHARE", "FIN_CURRENT_LIQUIDITY", "FIN_EBITDA_MARGIN", "FIN_NET_INCOME",
+    "FIN_DEPRECIATION", "FIN_INTEREST_EXPENSE", "FIN_REVENUE", "FIN_NONOP_INCOME",
+    "FIN_TOTAL_LIABILITIES", "FIN_EQUITY", "INST_TOTAL_EMPLOYEES", "INST_PERMANENT_EMPLOYEES",
+    "OPS_CONNECTIONS_TOTAL", "INST_PRODUCTIVITY_CONN_PER_STAFF"
+  ]);
+  function renderDatasetIndicators() {
+    const container = document.querySelector("#datasetIndicatorTable");
+    if (!container) return;
+    const byInd = new Map();
+    observations.forEach(r => {
+      const e = byInd.get(r.indicator_id)
+        ?? byInd.set(r.indicator_id, { name: r.indicator_name || r.indicator_id, category: r.category || "", utils: new Set(), n: 0, minY: Infinity, maxY: -Infinity }).get(r.indicator_id);
+      e.utils.add(r.utility_id); e.n++;
+      if (r.year < e.minY) e.minY = r.year;
+      if (r.year > e.maxY) e.maxY = r.year;
+    });
+    const totalU = obsByUtil.size;
+    const rows = [...byInd.entries()].sort((a, b) => b[1].utils.size - a[1].utils.size || a[0].localeCompare(b[0]));
+    document.querySelector("#datasetIndicatorCaption").textContent =
+      `All ${rows.length} indicators found in the source reports, most common first: how many of the ${totalU} utilities have at least one validated observation of each.`;
+    container.innerHTML = `<table class="factor-table coverage-table dataset-ind-table">
+      <thead><tr><th>Indicator</th><th>Category</th><th>Utilities with it</th><th>Share</th><th>Observations</th><th>Years</th></tr></thead>
+      <tbody>${rows.map(([id, e]) => {
+        const share = e.utils.size / totalU * 100;
+        return `<tr><td><b>${esc(e.name)}</b>${RANKING_INPUT_IDS.has(id) ? ` <span class="rank-flag" title="Feeds the ranking's nine evidence-eligible factors">ranking input</span>` : ""}<br><small>${esc(id)}</small></td>
+          <td>${esc(e.category)}</td>
+          <td><b>${e.utils.size}</b> / ${totalU}</td>
+          <td><span class="cov-share"><span style="width:${share.toFixed(1)}%"></span></span> ${share.toFixed(0)}%</td>
+          <td>${e.n.toLocaleString()}</td><td>${e.minY === e.maxY ? e.minY : `${e.minY}–${e.maxY}`}</td></tr>`;
+      }).join("")}</tbody></table>`;
+  }
+
+  // ---- Indicator multi-select filter --------------------------------------
+  function syncIndicatorSummary() {
+    const n = state.indicators.size;
+    document.querySelector("#indicatorFilterSummary").textContent =
+      n === 0 ? "All indicators" : n === 1 ? factorById[[...state.indicators][0]].name : `${n} indicators selected`;
+  }
+  function populateIndicatorFilter() {
+    const panel = document.querySelector("#indicatorFilterPanel");
+    panel.innerHTML = `<span class="multiselect-hint">Show only utilities with evidence for every ticked factor.</span>`
+      + phlFactorInputs.map(entry => {
+        const f = factorById[entry.factorId];
+        return `<label><input type="checkbox" value="${entry.factorId}"${state.indicators.has(entry.factorId) ? " checked" : ""}> ${esc(f.name)}</label>`;
+      }).join("");
+    panel.querySelectorAll("input").forEach(cb => cb.addEventListener("change", () => {
+      cb.checked ? state.indicators.add(cb.value) : state.indicators.delete(cb.value);
+      syncIndicatorSummary();
+      renderAll();
+    }));
+    syncIndicatorSummary();
   }
 
   // ---- Methodology: 23-indicator reference table ---------------------------
@@ -480,6 +546,100 @@
       <tbody>${body}</tbody></table>`;
   }
 
+  // ---- Excel export --------------------------------------------------------
+  // Dependency-free .xlsx writer: an OOXML workbook with inline strings inside
+  // a stored (uncompressed) ZIP. Small enough for a few hundred ranked rows.
+  const CRC_TABLE = (() => {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+  function crc32(bytes) {
+    let c = 0xffffffff;
+    for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  }
+  function zipStore(files) {  // files: [name, xmlString][] → Blob (.xlsx)
+    const enc = new TextEncoder();
+    const u16 = v => new Uint8Array([v & 255, (v >> 8) & 255]);
+    const u32 = v => new Uint8Array([v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255]);
+    const DOS_DATE = (1 << 5) | 1;  // 1980-01-01, the ZIP epoch
+    const parts = [], central = [];
+    let offset = 0;
+    files.forEach(([name, text]) => {
+      const nameB = enc.encode(name), data = enc.encode(text), crc = crc32(data);
+      const head = [u16(20), u16(0), u16(0), u16(0), u16(DOS_DATE), u32(crc), u32(data.length), u32(data.length), u16(nameB.length), u16(0)];
+      parts.push(u32(0x04034b50), ...head, nameB, data);
+      central.push(u32(0x02014b50), u16(20), ...head, u16(0), u16(0), u16(0), u32(0), u32(offset), nameB);
+      offset += 30 + nameB.length + data.length;
+    });
+    const centralSize = central.reduce((s, c) => s + c.length, 0);
+    parts.push(...central, u32(0x06054b50), u16(0), u16(0), u16(files.length), u16(files.length), u32(centralSize), u32(offset), u16(0));
+    return new Blob(parts, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  }
+  const xmlEsc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const sheetXML = rows => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${rows.map(r =>
+    `<row>${r.map(c => c == null || c === ""
+      ? "<c/>"
+      : typeof c === "number" && Number.isFinite(c)
+        ? `<c t="n"><v>${c}</v></c>`
+        : `<c t="inlineStr"><is><t xml:space="preserve">${xmlEsc(c)}</t></is></c>`).join("")}</row>`).join("")}</sheetData></worksheet>`;
+  function workbookBlob(sheets) {  // sheets: [name, rows][]
+    const files = [
+      ["[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${sheets.map((_, i) =>
+        `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}</Types>`],
+      ["_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
+      ["xl/workbook.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map(([name], i) =>
+        `<sheet name="${xmlEsc(name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets></workbook>`],
+      ["xl/_rels/workbook.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, i) =>
+        `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")}</Relationships>`],
+      ...sheets.map(([, rows], i) => [`xl/worksheets/sheet${i + 1}.xml`, sheetXML(rows)])
+    ];
+    return zipStore(files);
+  }
+
+  function exportExcel() {
+    const rows = lastFiltered.filter(r => r.ranked).sort((a, b) => a.rank - b.rank);
+    const round = (v, d) => v == null ? null : Number(v.toFixed(d));
+    const ranking = [
+      ["Rank (national)", "Utility ID", "Utility", "Province", "Region", "LWUA size category", "Median connections", "Score (0-100)", "Rating band (demo)", "Evidenced factors (of 9)", "Coverage", "Data years"],
+      ...rows.map(r => [r.rank, r.id, r.name, r.provinceName ?? "", r.region, r.size ? `${r.size.name} (${r.size.key})` : "unknown",
+        r.size ? r.size.connections : null, round(r.score, 1), bandForScore(r.score).label, r.available, r.confidence, r.yearRange.replace(/^Data years? /, "")])
+    ];
+    const detail = [["Rank (national)", "Utility ID", "Utility", "Factor", "Value", "Value (display)", "Points (0-4)", "Band", "Weight", "Weighted points", "Data years", "Source"]];
+    rows.forEach(r => r.factors.filter(f => f.available).forEach(f =>
+      detail.push([r.rank, r.id, r.name, f.name, round(f.value, 3), f.formatted, f.points, f.band, f.weight, f.weighted, f.years.join(", "), f.sourceLabel])));
+    const filterDesc = [
+      ["WaterCRED · Philippines — filtered ranking export"], [],
+      ["Exported", new Date().toISOString().slice(0, 10)],
+      ["Through year", state.year],
+      ["Size filter", state.size === "all" ? "all sizes" : state.size === "unknown" ? "size unknown" : `LWUA category ${state.size}`],
+      ["Region filter", state.region === "all" ? "all regions" : state.region],
+      ["Province filter", state.province === "all" ? "all provinces" : (PHL_PROVINCE_META[state.province]?.name ?? state.province)],
+      ["Search", state.search || "—"],
+      ["Indicator filter", state.indicators.size ? [...state.indicators].map(id => factorById[id].name).join(", ") : "all indicators"],
+      ["Utilities exported", rows.length], [],
+      ["A relative, renormalized indication — not the full 23-factor index and not a credit rating."],
+      ["Each utility is scored on the workbook factors its validated data supports (0-4 bands); score = Σ(points × weight) ÷ Σ(4 × weight) × 100. Minimum 4 evidenced factors; observations ≤5 years old; derived ratios combine same-year statements only."],
+      ["Utility-to-province mapping is compiled and approximate. Sources: COA Annual Audit/Financial Reports, LWUA monitoring data, Manila Water statements."]
+    ];
+    const blob = workbookBlob([["Ranking", ranking], ["Factor detail", detail], ["Export notes", filterDesc]]);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `watercred_philippines_${state.year}.xlsx`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }
+
   // ---- Load & wire ---------------------------------------------------------
   async function load() {
     const status = document.querySelector("#dataStatus");
@@ -495,8 +655,12 @@
       const years = [...new Set(observations.map(r => r.year))];
       if (!years.includes(state.year)) state.year = Math.max(...years.filter(y => y >= MIN_YEAR));
       status.textContent = `${observations.length.toLocaleString()} validated observations · ${utilities.size} water utilities · ${Math.min(...years.filter(y => y >= MIN_YEAR))}–${Math.max(...years)} · sources: COA, LWUA, Manila Water`;
+      document.querySelector("#utilityList").innerHTML =
+        [...new Set(csvNames.values())].sort().map(n => `<option value="${esc(n)}">`).join("");
       populateStaticControls();
+      populateIndicatorFilter();
       renderIndicatorTable();
+      renderDatasetIndicators();
       renderAll();
     } catch (error) {
       status.className = "data-status error";
@@ -508,7 +672,29 @@
   document.querySelector("#sizeFilter").addEventListener("change", e => { state.size = e.target.value; renderAll(); });
   document.querySelector("#regionFilter").addEventListener("change", e => { state.region = e.target.value; state.province = "all"; updateProvinceOptions(); renderAll(); });
   document.querySelector("#provinceFilter").addEventListener("change", e => { state.province = e.target.value; renderAll(); });
-  document.querySelector("#filterReset").addEventListener("click", () => { state.size = "all"; state.region = "all"; state.province = "all"; syncControls(); updateProvinceOptions(); renderAll(); });
+  document.querySelector("#searchFilter").addEventListener("input", e => { state.search = e.target.value.trim().toLowerCase(); renderAll(); });
+  document.querySelector("#exportBtn").addEventListener("click", exportExcel);
+  document.querySelector("#filterReset").addEventListener("click", () => {
+    state.size = "all"; state.region = "all"; state.province = "all"; state.search = ""; state.indicators.clear();
+    document.querySelector("#searchFilter").value = "";
+    populateIndicatorFilter();
+    syncControls(); updateProvinceOptions(); renderAll();
+  });
+  // Close the indicator dropdown on outside click.
+  document.addEventListener("click", e => {
+    const ms = document.querySelector("#indicatorFilter");
+    if (ms?.open && !ms.contains(e.target)) ms.open = false;
+  });
+  // Nav links can point inside a collapsed <details> (e.g. #coverage) — open it.
+  const openDetailsForHash = () => {
+    if (!location.hash) return;
+    const el = document.getElementById(location.hash.slice(1));
+    if (!el) return;
+    if (el.tagName === "DETAILS") el.open = true;
+    el.closest("details")?.setAttribute("open", "");
+  };
+  window.addEventListener("hashchange", openDetailsForHash);
+  openDetailsForHash();
 
   load();
 })();

@@ -132,3 +132,27 @@ geoBoundaries (CC-BY 4.0) and PSGC 2019 in the page footer, map note, README, an
 - Added `.nojekyll` so Pages serves every file verbatim.
 - Published: created public repo **ademenezes/watercred**, pushed `main` (needed `http.postBuffer` raised for the 21 MB CSV), enabled GitHub Pages from `main`/`/`. Live at **https://ademenezes.github.io/watercred/** (root redirects to `philippines.html`). Verified all assets return 200 and the gate ships; gate unlock/relock and content render verified on localhost (same secure-context/`crypto.subtle` behavior as Pages HTTPS).
 - Note: the site (incl. the 21 MB CSV and the methodology `.xlsx` workbook) is now public; the methodology is already disclosed on-page, but the workbook can be untracked later if that filename shouldn't be public.
+
+## 2026-07-22 — Search, indicator filter, Excel export, dataset indicator coverage
+
+### New ranking controls (`philippines.html` / `philippines.js` / `styles.css`)
+- **Search**: free-text input in the filter bar matching utility name, utility id, province name or region (case-insensitive), with a `<datalist>` autocomplete of all utility names. Feeds the same filter chain as size/region, so the map follows it too.
+- **Indicator multi-select** (`#indicatorFilter`): a custom checkbox dropdown over the nine evidence-eligible factors. Semantics: a utility is shown only if it has evidence for **every** ticked factor (no scoring change — it narrows the list exactly like the other filters; national ranks unchanged). Summary label shows "All indicators / <name> / N indicators selected"; closes on outside click; reset clears it.
+- **Reset** now also clears search + indicator selections.
+
+### Export to Excel (`#exportBtn`)
+- Dependency-free `.xlsx` writer added to `philippines.js`: OOXML workbook with inline strings inside a **stored (uncompressed) ZIP** built by hand (CRC-32 table, local + central directory records). No library, in keeping with the no-build-step constraint.
+- Exports the **currently filtered, ranked** rows in three sheets: **Ranking** (rank, ids, geography, LWUA size, median connections, score, demo rating band, coverage, data years), **Factor detail** (one row per utility × evidenced factor: raw value, display value, 0–4 points, band, weight, weighted points, years, source), and **Export notes** (export date, every active filter, utility count, and the methodology disclaimers — renormalized indication / not a credit rating / approximate province mapping).
+- Raw factor values are now kept on each factor detail (`value`) so the export can ship numbers, not just formatted strings.
+- Verified outside the browser: a Node harness extracts the writer section verbatim from `philippines.js`, generates a workbook, `unzip -t` passes, CRC-32 check value (0xCBF43926) confirmed, and **openpyxl opens it** with correct sheet names, numeric cells and escaped special characters.
+
+### Dataset indicator coverage (`#coverage`)
+- New collapsible "Which indicators appear in the source reports?" section under the existing per-factor coverage: all raw CSV indicators (68), most common first, with utilities having ≥1 observation (n / 519 + share bar), observation counts and year span. Indicators that feed the nine ranked factors (directly or as derived-ratio components) are flagged **ranking input** via a fixed `RANKING_INPUT_IDS` set. Counts are whole-dataset (all years) and say so — deliberately independent of the ranking's ≤5-year rule, which the adjacent per-factor table already applies.
+- Top of the list: FIN_NET_INCOME and FIN_REVENUE (519/519), FIN_CURRENT_ASSETS (518/519).
+- Nav gained a **Data coverage** link; a small hash handler opens the `<details>` when navigated to (nav anchors into collapsed details would otherwise show nothing).
+
+### Verification (browser, local server)
+- No console errors on load; 165 ranked at 2023 unchanged. Search "cebu" → 3 ranked (Metro Cebu WD first); +NRW+EBITDA indicator filter → 2; reset restores 165 and clears controls; export produced `watercred_philippines_2023.xlsx` (18.5 KB blob, correct MIME); #coverage nav opens the details with 68 rows.
+
+### Default year → 2025 (same day)
+- `DEFAULT_YEAR` in `philippines.js` changed 2023 → 2025 so the page opens on the latest data year. **102 utilities rank at 2025** (vs 165 at 2023) — expected, as the ≤5-year evidence window shifts to 2020–2025 and 2024–25 filings are thinner. Verified in-browser: year filter loads showing 2025, 102 ranked, no console errors. README/CLAUDE.md updated (CLAUDE.md now also documents the new controls, element ids, and the library-free `.xlsx` writer constraint).

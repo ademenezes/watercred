@@ -27,6 +27,7 @@
     <nav aria-label="Page sections">
       <a href="#ranking">Ranking</a>
       <a href="#map">Map</a>
+      <a href="#coverage">Data coverage</a>
       <a href="#method">Methodology</a>
     </nav>
   </header>
@@ -51,6 +52,10 @@
         <div class="data-status" id="dataStatus" role="status">Loading philippines_validated.csv…</div>
 
         <div class="filter-bar" role="group" aria-label="Ranking filters">
+          <label>Search
+            <input type="search" id="searchFilter" list="utilityList" placeholder="Utility, province, region…" autocomplete="off" aria-label="Search utilities by name, province or region">
+          </label>
+          <datalist id="utilityList"></datalist>
           <label>Size (LWUA)
             <select id="sizeFilter"></select>
           </label>
@@ -60,10 +65,17 @@
           <label>Province (admin 2)
             <select id="provinceFilter"></select>
           </label>
+          <span class="filter-label">Indicators
+            <details class="multiselect" id="indicatorFilter">
+              <summary id="indicatorFilterSummary" aria-label="Filter by evidenced indicators">All indicators</summary>
+              <div class="multiselect-panel" id="indicatorFilterPanel"></div>
+            </details>
+          </span>
           <label>Through year
             <select id="yearFilter"></select>
           </label>
           <button class="button compact ghost" id="filterReset" type="button">Reset filters</button>
+          <button class="button compact primary" id="exportBtn" type="button" title="Download the filtered ranking as an Excel workbook">Export to Excel</button>
           <span class="filter-count" id="rankingCount"></span>
         </div>
 
@@ -85,6 +97,13 @@
           <p id="coverageCaption" class="ranking-hint"></p>
           <div id="coverageTable"></div>
           <p class="factor-breakdown-note">A utility whose derived ratio combines rows from two institutions is counted under both, so source splits can sum above the utility count.</p>
+        </details>
+
+        <details class="coverage-details" id="coverage">
+          <summary>Which indicators appear in the source reports?</summary>
+          <p id="datasetIndicatorCaption" class="ranking-hint"></p>
+          <div id="datasetIndicatorTable"></div>
+          <p class="factor-breakdown-note">Counts cover every validated observation in the dataset across all years, independent of the ≤5-year freshness rule the ranking applies. Indicators tagged <span class="rank-flag">ranking input</span> feed the nine evidence-eligible factors, directly or as components of a derived ratio.</p>
         </details>
       </div>
 
