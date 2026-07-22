@@ -156,3 +156,7 @@ geoBoundaries (CC-BY 4.0) and PSGC 2019 in the page footer, map note, README, an
 
 ### Default year → 2025 (same day)
 - `DEFAULT_YEAR` in `philippines.js` changed 2023 → 2025 so the page opens on the latest data year. **102 utilities rank at 2025** (vs 165 at 2023) — expected, as the ≤5-year evidence window shifts to 2020–2025 and 2024–25 filings are thinner. Verified in-browser: year filter loads showing 2025, 102 ranked, no console errors. README/CLAUDE.md updated (CLAUDE.md now also documents the new controls, element ids, and the library-free `.xlsx` writer constraint).
+
+### Export gains an "Indicator data" sheet (same day)
+- The Excel export now includes a fourth sheet, **Indicator data**, between Factor detail and Export notes: every validated observation up to the selected year for each exported utility — rank, utility, indicator id + name, category, year, value, unit, source institution (shortened), verification level. Sorted by rank, then indicator, then year (newest first). Values are the load-normalized ones (PHP million → PHP, million m³ → m³), disclosed in the Export notes sheet; non-finite values export as blank cells.
+- Verified: at the 2025 default (102 ranked utilities) the sheet holds 15,684 observation rows and the workbook is ~10.3 MB (stored zip, built in ~0.9 s in-browser); spot-checked first row (Manila Water FIN_CAPEX 2024 = 23,600,000,000 PHP — normalization correct). A 16k-row stress workbook from the same writer opens in openpyxl with correct values.

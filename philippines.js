@@ -618,6 +618,13 @@
     const detail = [["Rank (national)", "Utility ID", "Utility", "Factor", "Value", "Value (display)", "Points (0-4)", "Band", "Weight", "Weighted points", "Data years", "Source"]];
     rows.forEach(r => r.factors.filter(f => f.available).forEach(f =>
       detail.push([r.rank, r.id, r.name, f.name, round(f.value, 3), f.formatted, f.points, f.band, f.weight, f.weighted, f.years.join(", "), f.sourceLabel])));
+    // Every validated observation (≤ through-year) behind the exported utilities.
+    const indicatorData = [["Rank (national)", "Utility ID", "Utility", "Indicator ID", "Indicator", "Category", "Year", "Value", "Unit", "Source institution", "Verification"]];
+    rows.forEach(r => (obsByUtil.get(r.id) ?? [])
+      .filter(o => o.year <= state.year)
+      .sort((a, b) => a.indicator_id.localeCompare(b.indicator_id) || b.year - a.year)
+      .forEach(o => indicatorData.push([r.rank, r.id, r.name, o.indicator_id, o.indicator_name || "", o.category || "",
+        o.year, Number.isFinite(o.value) ? o.value : null, o.unit || "", shortInstitution(o.source_institution), o.verification_level || ""])));
     const filterDesc = [
       ["WaterCRED · Philippines — filtered ranking export"], [],
       ["Exported", new Date().toISOString().slice(0, 10)],
@@ -630,9 +637,10 @@
       ["Utilities exported", rows.length], [],
       ["A relative, renormalized indication — not the full 23-factor index and not a credit rating."],
       ["Each utility is scored on the workbook factors its validated data supports (0-4 bands); score = Σ(points × weight) ÷ Σ(4 × weight) × 100. Minimum 4 evidenced factors; observations ≤5 years old; derived ratios combine same-year statements only."],
+      ["The Indicator data sheet lists every validated observation up to the selected year for the exported utilities — all indicators, with year, unit, source institution and verification level. Amounts reported as PHP million and volumes as million m³ are normalized to PHP / m³."],
       ["Utility-to-province mapping is compiled and approximate. Sources: COA Annual Audit/Financial Reports, LWUA monitoring data, Manila Water statements."]
     ];
-    const blob = workbookBlob([["Ranking", ranking], ["Factor detail", detail], ["Export notes", filterDesc]]);
+    const blob = workbookBlob([["Ranking", ranking], ["Factor detail", detail], ["Indicator data", indicatorData], ["Export notes", filterDesc]]);
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = `watercred_philippines_${state.year}.xlsx`;
