@@ -32,6 +32,7 @@
   const SOURCE_SHORT = {
     "COA (Commission on Audit)": "COA",
     "LWUA / water districts": "LWUA",
+    "LWUA (Local Water Utilities Administration) via DAP RBPMS": "LWUA · DAP RBPMS",
     "Manila Water Company": "Manila Water"
   };
   const shortInstitution = s => SOURCE_SHORT[s] ?? s;
@@ -653,7 +654,7 @@
     for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
     return (c ^ 0xffffffff) >>> 0;
   }
-  function zipStore(files) {  // files: [name, xmlString][] → Blob (.xlsx)
+  function zipStore(files, mime) {  // files: [name, xmlString][] → Blob
     const enc = new TextEncoder();
     const u16 = v => new Uint8Array([v & 255, (v >> 8) & 255]);
     const u32 = v => new Uint8Array([v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255]);
@@ -669,47 +670,97 @@
     });
     const centralSize = central.reduce((s, c) => s + c.length, 0);
     parts.push(...central, u32(0x06054b50), u16(0), u16(0), u16(files.length), u16(files.length), u32(centralSize), u32(offset), u16(0));
-    return new Blob(parts, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    return new Blob(parts, { type: mime });
   }
   const xmlEsc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-  const sheetXML = rows => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${rows.map(r =>
-    `<row>${r.map(c => c == null || c === ""
-      ? "<c/>"
-      : typeof c === "number" && Number.isFinite(c)
-        ? `<c t="n"><v>${c}</v></c>`
-        : `<c t="inlineStr"><is><t xml:space="preserve">${xmlEsc(c)}</t></is></c>`).join("")}</row>`).join("")}</sheetData></worksheet>`;
-  function workbookBlob(sheets) {  // sheets: [name, rows][]
+  // Styled worksheet: optional frozen header row, autofilter, column widths,
+  // and per-column number formats via opts.fmt ('i' thousands int, 'd' 2-dec).
+  const colLetter = i => { let s = ""; i++; while (i) { s = String.fromCharCode(64 + ((i - 1) % 26 + 1)) + s; i = Math.floor((i - 1) / 26); } return s; };
+  const XSTYLE = { header: 1, int: 2, dec: 3, title: 4 };
+  function sheetXML(rows, opts = {}) {
+    const fmtStyle = ci => opts.fmt?.[ci] === "i" ? XSTYLE.int : opts.fmt?.[ci] === "d" ? XSTYLE.dec : 0;
+    const cellXML = (v, s) => v == null || v === ""
+      ? (s ? `<c s="${s}"/>` : "<c/>")
+      : typeof v === "number" && Number.isFinite(v)
+        ? `<c t="n"${s ? ` s="${s}"` : ""}><v>${v}</v></c>`
+        : `<c t="inlineStr"${s ? ` s="${s}"` : ""}><is><t xml:space="preserve">${xmlEsc(v)}</t></is></c>`;
+    const body = rows.map((r, ri) => `<row>${r.map((v, ci) =>
+      cellXML(v, opts.header && ri === 0 ? XSTYLE.header : opts.title && ri === 0 && ci === 0 ? XSTYLE.title : fmtStyle(ci))).join("")}</row>`).join("");
+    const nCols = Math.max(1, ...rows.map(r => r.length));
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${
+      opts.freeze ? `<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>` : ""}${
+      opts.widths ? `<cols>${opts.widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("")}</cols>` : ""}<sheetData>${body}</sheetData>${
+      opts.filter ? `<autoFilter ref="A1:${colLetter(nCols - 1)}${rows.length}"/>` : ""}</worksheet>`;
+  }
+  // Fixed style table: 0 default · 1 teal header · 2 #,##0 · 3 #,##0.00 · 4 title.
+  const XLSX_STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="3"><font><sz val="11"/><color rgb="FF1F2A2A"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font><font><b/><sz val="14"/><color rgb="FF11505B"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1D7180"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" applyFont="1" applyFill="1"/><xf numFmtId="3" fontId="0" fillId="0" borderId="0" applyNumberFormat="1"/><xf numFmtId="4" fontId="0" fillId="0" borderId="0" applyNumberFormat="1"/><xf numFmtId="0" fontId="2" fillId="0" borderId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+  function workbookBlob(sheets) {  // sheets: {name, rows, opts}[]
     const files = [
       ["[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${sheets.map((_, i) =>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((_, i) =>
         `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}</Types>`],
       ["_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
       ["xl/workbook.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map(([name], i) =>
-        `<sheet name="${xmlEsc(name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets></workbook>`],
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((s, i) =>
+        `<sheet name="${xmlEsc(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets></workbook>`],
       ["xl/_rels/workbook.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, i) =>
-        `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")}</Relationships>`],
-      ...sheets.map(([, rows], i) => [`xl/worksheets/sheet${i + 1}.xml`, sheetXML(rows)])
+        `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+      ["xl/styles.xml", XLSX_STYLES],
+      ...sheets.map((s, i) => [`xl/worksheets/sheet${i + 1}.xml`, sheetXML(s.rows, s.opts)])
     ];
-    return zipStore(files);
+    return zipStore(files, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   }
 
+  // Non-default filters as human-readable lines (shared by both exports).
+  function activeFilterLines() {
+    const lines = [];
+    if (state.search) lines.push(`Search: "${state.search}"`);
+    if (state.sizes.size) lines.push(`Size: ${[...state.sizes].map(k => k === "unknown" ? "size unknown" : `LWUA category ${k}`).join(", ")}`);
+    if (state.regions.size) lines.push(`Regions: ${[...state.regions].map(regionLabel).join(", ")}`);
+    if (state.provinces.size) lines.push(`Provinces: ${[...state.provinces].map(p => PHL_PROVINCE_META[p]?.name ?? p).join(", ")}`);
+    if (state.indicators.size) lines.push(`Required indicators: ${[...state.indicators].map(id => factorById[id].name).join(", ")}`);
+    return lines;
+  }
+  const rankedFiltered = () => lastFiltered.filter(r => r.ranked).sort((a, b) => a.rank - b.rank);
+  const download = (blob, filename) => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  };
+
   function exportExcel() {
-    const rows = lastFiltered.filter(r => r.ranked).sort((a, b) => a.rank - b.rank);
+    const rows = rankedFiltered();
     const round = (v, d) => v == null ? null : Number(v.toFixed(d));
-    const ranking = [
-      ["Rank (national)", "Utility ID", "Utility", "Province", "Region", "LWUA size category", "Median connections", "Score (0-100)", "Rating band (demo)", `Evidenced factors (of ${phlFactorInputs.length})`, "Coverage", "Data years"],
-      ...rows.map(r => [r.rank, r.id, r.name, r.provinceName ?? "", r.region, r.size ? `${r.size.name} (${r.size.key})` : "unknown",
-        r.size ? r.size.connections : null, round(r.score, 1), bandForScore(r.score).label, r.available, r.confidence, r.yearRange.replace(/^Data years? /, "")])
-    ];
-    const detail = [["Rank (national)", "Utility ID", "Utility", "Factor", "Value", "Value (display)", "Points (0-4)", "Band", "Weight", "Weighted points", "Data years", "Source"]];
-    rows.forEach(r => r.factors.filter(f => f.available).forEach(f =>
-      detail.push([r.rank, r.id, r.name, f.name, round(f.value, 3), f.formatted, f.points, f.band, f.weight, f.weighted, f.years.join(", "), f.sourceLabel])));
+    // One wide, filterable sheet: utility metadata + key financials + every
+    // factor as a value/points column pair (full provenance in Indicator data).
+    const header = ["Rank", "Utility ID", "Utility", "Province", "Region", "LWUA size", "Median connections",
+      "Score (0-100)", "Rating band (demo)", `Factors (of ${phlFactorInputs.length})`, "Factor data years",
+      ...KEY_FINANCIALS.map(k => `${k.label} (PHP)`), "Financials years",
+      ...phlFactorInputs.flatMap(e => { const n = factorById[e.factorId].name; return [`${n} — value`, `${n} — points`]; })];
+    const fmt = [null, null, null, null, null, null, "i", "d", null, null, null,
+      "i", "i", "i", "i", "i", null, ...phlFactorInputs.flatMap(() => ["d", null])];
+    const widths = [7, 26, 34, 16, 26, 18, 13, 11, 28, 10, 15, 15, 15, 15, 15, 15, 12, ...phlFactorInputs.flatMap(() => [13, 8])];
+    const ranking = [header, ...rows.map(r => {
+      const kf = KEY_FINANCIALS.map(k => latestObservation(r.id, k.id, state.year));
+      const kfYears = [...new Set(kf.filter(Boolean).map(o => o.year))].sort((a, b) => a - b);
+      return [r.rank, r.id, r.name, r.provinceName ?? "", r.region ? regionLabel(r.region) : "", r.size ? `${r.size.name} (${r.size.key})` : "unknown",
+        r.size ? Math.round(r.size.connections) : null, round(r.score, 1), bandForScore(r.score).label, r.available,
+        r.yearRange.replace(/^Data years? /, ""),
+        ...kf.map(o => o && Number.isFinite(o.value) ? Math.round(o.value) : null),
+        kfYears.join(", "),
+        ...phlFactorInputs.flatMap(e => {
+          const f = r.factors.find(x => x.factorId === e.factorId);
+          return f?.available ? [round(f.value, 2), f.points] : [null, null];
+        })];
+    })];
     // Every validated observation (≤ through-year) behind the exported utilities.
-    const indicatorData = [["Rank (national)", "Utility ID", "Utility", "Indicator ID", "Indicator", "Category", "Year", "Value", "Unit", "Source institution", "Verification"]];
+    const indicatorData = [["Rank", "Utility ID", "Utility", "Indicator ID", "Indicator", "Category", "Year", "Value", "Unit", "Source institution", "Verification"]];
     rows.forEach(r => (obsByUtil.get(r.id) ?? [])
       .filter(o => o.year <= state.year)
       .sort((a, b) => a.indicator_id.localeCompare(b.indicator_id) || b.year - a.year)
@@ -719,23 +770,149 @@
       ["WaterCRED · Philippines — filtered ranking export"], [],
       ["Exported", new Date().toISOString().slice(0, 10)],
       ["Through year", state.year],
-      ["Size filter", state.sizes.size ? [...state.sizes].map(k => k === "unknown" ? "size unknown" : `LWUA category ${k}`).join(", ") : "all sizes"],
-      ["Region filter", state.regions.size ? [...state.regions].map(regionLabel).join(", ") : "all regions"],
-      ["Province filter", state.provinces.size ? [...state.provinces].map(p => PHL_PROVINCE_META[p]?.name ?? p).join(", ") : "all provinces"],
-      ["Search", state.search || "—"],
-      ["Indicator filter", state.indicators.size ? [...state.indicators].map(id => factorById[id].name).join(", ") : "all indicators"],
+      ["Active filters", activeFilterLines().join(" · ") || "none (all utilities)"],
       ["Utilities exported", rows.length], [],
       ["A relative, renormalized indication — not the full 23-factor index and not a credit rating."],
       ["Each utility is scored on the workbook factors its validated data supports (0-4 bands); score = Σ(points × weight) ÷ Σ(4 × weight) × 100. Minimum 4 evidenced factors; each factor uses the latest observation up to the selected year with no age limit (data years disclosed per factor); derived ratios combine same-year statements only."],
-      ["The Indicator data sheet lists every validated observation up to the selected year for the exported utilities — all indicators, with year, unit, source institution and verification level. Amounts reported as PHP million and volumes as million m³ are normalized to PHP / m³."],
+      ["The Ranking sheet holds one row per utility: key financials (absolute PHP, context only — not scored) and each factor's value and 0-4 points. The Indicator data sheet lists every validated observation up to the selected year for the exported utilities, with year, unit, source institution and verification level. Amounts reported as PHP million and volumes as million m³ are normalized to PHP / m³."],
       ["Utility-to-province mapping is compiled and approximate. Sources: COA Annual Audit/Financial Reports, LWUA monitoring data, Manila Water statements."]
     ];
-    const blob = workbookBlob([["Ranking", ranking], ["Factor detail", detail], ["Indicator data", indicatorData], ["Export notes", filterDesc]]);
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `watercred_philippines_${state.year}.xlsx`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    const blob = workbookBlob([
+      { name: "Ranking", rows: ranking, opts: { header: true, freeze: true, filter: true, fmt, widths } },
+      { name: "Indicator data", rows: indicatorData, opts: { header: true, freeze: true, filter: true, widths: [7, 26, 34, 30, 34, 13, 8, 16, 10, 20, 13] } },
+      { name: "Export notes", rows: filterDesc, opts: { title: true, widths: [22, 90] } }
+    ]);
+    download(blob, `watercred_philippines_${state.year}.xlsx`);
+  }
+
+  // ---- PowerPoint export (top 10 filtered utilities — no rating info) -----
+  // Same hand-built OOXML approach as the Excel export: presentation, master,
+  // layout, theme and one slide per utility inside a stored ZIP.
+  const IN_EMU = 914400;   // EMU per inch; slide canvas is 13.333in × 7.5in
+  const emu = inches => Math.round(inches * IN_EMU);
+  const PPTC = { dark: "11505B", teal: "1D7180", cream: "F7F3EA", ink: "1F2A2A", muted: "66797A", lime: "C9DD7B", zebra: "EDF2EA", faint: "8AA0A0", light: "A9C5C5", pale: "DCEBE8" };
+  const PPT_NS = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"';
+  const SPTREE_HEAD = `<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>`;
+  let pptShapeId = 2;
+  const pptRun = r => `<a:r><a:rPr lang="en-US" sz="${Math.round(r.sz * 100)}"${r.b ? ' b="1"' : ""}><a:solidFill><a:srgbClr val="${r.color}"/></a:solidFill><a:latin typeface="Calibri"/></a:rPr><a:t>${xmlEsc(r.text)}</a:t></a:r>`;
+  const pptPara = p => `<a:p><a:pPr algn="${p.align ?? "l"}">${p.spcB ? `<a:spcBef><a:spcPts val="${p.spcB * 100}"/></a:spcBef>` : ""}</a:pPr>${(p.runs ?? [p]).map(pptRun).join("")}</a:p>`;
+  const pptRect = (x, y, w, h, fill, rounded) =>
+    `<p:sp><p:nvSpPr><p:cNvPr id="${pptShapeId++}" name="rect"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="${emu(x)}" y="${emu(y)}"/><a:ext cx="${emu(w)}" cy="${emu(h)}"/></a:xfrm><a:prstGeom prst="${rounded ? "roundRect" : "rect"}">${rounded ? `<a:avLst><a:gd name="adj" fmla="val 4000"/></a:avLst>` : "<a:avLst/>"}</a:prstGeom><a:solidFill><a:srgbClr val="${fill}"/></a:solidFill><a:ln><a:noFill/></a:ln></p:spPr><p:txBody><a:bodyPr/><a:lstStyle/><a:p/></p:txBody></p:sp>`;
+  const pptText = (x, y, w, h, paras, anchor = "t") =>
+    `<p:sp><p:nvSpPr><p:cNvPr id="${pptShapeId++}" name="text"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="${emu(x)}" y="${emu(y)}"/><a:ext cx="${emu(w)}" cy="${emu(h)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr><p:txBody><a:bodyPr wrap="square" anchor="${anchor}"><a:normAutofit/></a:bodyPr><a:lstStyle/>${paras.map(pptPara).join("")}</p:txBody></p:sp>`;
+  function pptTable(x, y, w, colFracs, trows) {  // trows: {h, fill, cells:[{text,sz,b,color,align}]}
+    const grid = colFracs.map(f => `<a:gridCol w="${Math.round(emu(w) * f)}"/>`).join("");
+    const body = trows.map(tr => `<a:tr h="${emu(tr.h)}">${tr.cells.map(c =>
+      `<a:tc><a:txBody><a:bodyPr/><a:lstStyle/>${pptPara(c)}</a:txBody><a:tcPr marL="64008" marR="64008" marT="18288" marB="18288" anchor="ctr"><a:solidFill><a:srgbClr val="${tr.fill}"/></a:solidFill></a:tcPr></a:tc>`).join("")}</a:tr>`).join("");
+    return `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="${pptShapeId++}" name="table"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr><p:xfrm><a:off x="${emu(x)}" y="${emu(y)}"/><a:ext cx="${emu(w)}" cy="${emu(trows.reduce((s, tr) => s + tr.h, 0))}"/></p:xfrm><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblPr firstRow="1" bandRow="1"/><a:tblGrid>${grid}</a:tblGrid>${body}</a:tbl></a:graphicData></a:graphic></p:graphicFrame>`;
+  }
+  const pptSlideXML = shapes => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld ${PPT_NS}><p:cSld><p:spTree>${SPTREE_HEAD}${shapes}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>`;
+  const PPT_THEME = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="WaterCRED"><a:themeElements><a:clrScheme name="wc"><a:dk1><a:srgbClr val="1F2A2A"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="11505B"/></a:dk2><a:lt2><a:srgbClr val="F7F3EA"/></a:lt2><a:accent1><a:srgbClr val="1D7180"/></a:accent1><a:accent2><a:srgbClr val="C9DD7B"/></a:accent2><a:accent3><a:srgbClr val="44A892"/></a:accent3><a:accent4><a:srgbClr val="E0A84C"/></a:accent4><a:accent5><a:srgbClr val="BC624E"/></a:accent5><a:accent6><a:srgbClr val="66797A"/></a:accent6><a:hlink><a:srgbClr val="1D7180"/></a:hlink><a:folHlink><a:srgbClr val="66797A"/></a:folHlink></a:clrScheme><a:fontScheme name="wc"><a:majorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont><a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont></a:fontScheme><a:fmtScheme name="wc"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst><a:lnStyleLst><a:ln w="6350"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln><a:ln w="12700"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln><a:ln w="19050"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst></a:fmtScheme></a:themeElements></a:theme>`;
+  function pptxBlob(slides) {
+    const RELS = 'xmlns="http://schemas.openxmlformats.org/package/2006/relationships"';
+    const REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    const files = [
+      ["[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/><Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/><Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/><Override PartName="/ppt/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>${slides.map((_, i) =>
+        `<Override PartName="/ppt/slides/slide${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`).join("")}</Types>`],
+      ["_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships ${RELS}><Relationship Id="rId1" Type="${REL}/officeDocument" Target="ppt/presentation.xml"/></Relationships>`],
+      ["ppt/presentation.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentation ${PPT_NS}><p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst><p:sldIdLst>${slides.map((_, i) =>
+        `<p:sldId id="${256 + i}" r:id="rId${2 + i}"/>`).join("")}</p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/><p:notesSz cx="6858000" cy="9144000"/></p:presentation>`],
+      ["ppt/_rels/presentation.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships ${RELS}><Relationship Id="rId1" Type="${REL}/slideMaster" Target="slideMasters/slideMaster1.xml"/>${slides.map((_, i) =>
+        `<Relationship Id="rId${2 + i}" Type="${REL}/slide" Target="slides/slide${i + 1}.xml"/>`).join("")}</Relationships>`],
+      ["ppt/slideMasters/slideMaster1.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sldMaster ${PPT_NS}><p:cSld><p:spTree>${SPTREE_HEAD}</p:spTree></p:cSld><p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/><p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst></p:sldMaster>`],
+      ["ppt/slideMasters/_rels/slideMaster1.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships ${RELS}><Relationship Id="rId1" Type="${REL}/slideLayout" Target="../slideLayouts/slideLayout1.xml"/><Relationship Id="rId2" Type="${REL}/theme" Target="../theme/theme1.xml"/></Relationships>`],
+      ["ppt/slideLayouts/slideLayout1.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sldLayout ${PPT_NS}><p:cSld><p:spTree>${SPTREE_HEAD}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>`],
+      ["ppt/slideLayouts/_rels/slideLayout1.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships ${RELS}><Relationship Id="rId1" Type="${REL}/slideMaster" Target="../slideMasters/slideMaster1.xml"/></Relationships>`],
+      ["ppt/theme/theme1.xml", PPT_THEME],
+      ...slides.flatMap((shapes, i) => [
+        [`ppt/slides/slide${i + 1}.xml`, pptSlideXML(shapes)],
+        [`ppt/slides/_rels/slide${i + 1}.xml.rels`, `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships ${RELS}><Relationship Id="rId1" Type="${REL}/slideLayout" Target="../slideLayouts/slideLayout1.xml"/></Relationships>`]
+      ])
+    ];
+    return zipStore(files, "application/vnd.openxmlformats-officedocument.presentationml.presentation");
+  }
+
+  function pptTitleSlide(count) {
+    const filters = activeFilterLines();
+    return pptRect(0, 0, 13.333, 7.5, PPTC.dark)
+      + pptRect(0, 7.26, 13.333, 0.24, PPTC.lime)
+      + pptText(0.9, 2.0, 11.5, 2.0, [
+        { text: "WATERCRED · PHILIPPINES", sz: 15, b: true, color: PPTC.lime },
+        { text: "Water utility profiles", sz: 44, b: true, color: "FFFFFF", spcB: 8 }
+      ])
+      + pptText(0.9, 4.15, 11.5, 2.6, [
+        { text: `${count} ${count === 1 ? "utility" : "utilities"} · audited financial and operational data through ${state.year}`, sz: 17, color: PPTC.pale },
+        ...(filters.length ? filters.map(t => ({ text: t, sz: 12.5, color: PPTC.light, spcB: 4 })) : [{ text: "Selection: all utilities, no filters applied", sz: 12.5, color: PPTC.light, spcB: 4 }]),
+        { text: `Compiled ${new Date().toISOString().slice(0, 10)} · COA Annual Audit/Financial Reports · LWUA · Manila Water`, sz: 10.5, color: PPTC.faint, spcB: 10 }
+      ]);
+  }
+  function pptUtilitySlide(r) {
+    const place = [r.provinceName, r.region ? regionLabel(r.region) : null].filter(Boolean).join(" · ");
+    const sizeLine = r.size ? `${r.size.name} utility (LWUA category ${r.size.key}) · ${Math.round(r.size.connections).toLocaleString()} connections` : "size unknown";
+    const kf = KEY_FINANCIALS.map(k => ({ k, o: latestObservation(r.id, k.id, state.year) })).filter(e => e.o && Number.isFinite(e.o.value));
+    const facts = r.factors.filter(f => f.available);
+    let s = pptRect(0, 0, 13.333, 7.5, PPTC.cream)
+      + pptRect(0, 0, 13.333, 1.28, PPTC.dark)
+      + pptText(0.55, 0.12, 9.9, 0.64, [{ text: r.name, sz: 24, b: true, color: "FFFFFF" }])
+      + pptText(0.55, 0.74, 9.9, 0.44, [{ text: `${place || "location n/a"} · ${sizeLine}`, sz: 12, color: PPTC.light }])
+      + pptText(10.55, 0.42, 2.35, 0.5, [{ text: "WaterCRED", sz: 12, b: true, color: PPTC.lime, align: "r" }]);
+    s += pptRect(0.55, 1.62, 4.05, 5.25, "FFFFFF", true)
+      + pptText(0.85, 1.86, 3.5, 0.4, [{ text: "KEY FINANCIALS", sz: 12, b: true, color: PPTC.teal }]);
+    kf.forEach((e, i) => {
+      s += pptText(0.85, 2.32 + i * 0.9, 3.5, 0.88, [
+        { text: e.k.label, sz: 11, color: PPTC.muted },
+        { text: formatObsValue(e.o), sz: 19, b: true, color: PPTC.ink },
+        { text: `${e.o.year} · ${shortInstitution(e.o.source_institution)}`, sz: 9, color: PPTC.faint }
+      ]);
+    });
+    s += pptText(5.0, 1.62, 7.8, 0.4, [{ text: "EVIDENCED INDICATORS", sz: 12, b: true, color: PPTC.teal }]);
+    const trows = [
+      { h: 0.32, fill: PPTC.dark, cells: [
+        { text: "Indicator", sz: 10.5, b: true, color: "FFFFFF" },
+        { text: "Value", sz: 10.5, b: true, color: "FFFFFF" },
+        { text: "Year", sz: 10.5, b: true, color: "FFFFFF" },
+        { text: "Source", sz: 10.5, b: true, color: "FFFFFF" }] },
+      ...facts.map((f, i) => ({ h: 0.33, fill: i % 2 ? PPTC.zebra : "FFFFFF", cells: [
+        { text: f.name, sz: 10.5, color: PPTC.ink },
+        { text: f.formatted, sz: 10.5, b: true, color: PPTC.ink },
+        { text: f.years.join(", "), sz: 10.5, color: PPTC.muted },
+        { text: f.institutions.join(" + "), sz: 10.5, color: PPTC.muted }] }))
+    ];
+    s += pptTable(5.0, 2.08, 7.8, [0.36, 0.18, 0.14, 0.32], trows);
+    s += pptText(0.55, 7.06, 12.2, 0.36, [{ text: `Latest validated observation per line, through ${state.year}. Audited sources: COA Annual Audit/Financial Reports · LWUA · Manila Water.`, sz: 9, color: PPTC.faint }]);
+    return s;
+  }
+  function pptNotesSlide() {
+    const bullet = (text, first) => ({ text, sz: 13, color: PPTC.ink, spcB: first ? 0 : 8 });
+    return pptRect(0, 0, 13.333, 7.5, PPTC.cream)
+      + pptRect(0, 0, 13.333, 0.16, PPTC.dark)
+      + pptText(0.9, 0.75, 11.5, 0.7, [{ text: "Data & notes", sz: 27, b: true, color: PPTC.dark }])
+      + pptText(0.9, 1.7, 11.5, 5.2, [
+        bullet("All figures are validated observations from audited sources: COA Annual Audit Reports and Annual Financial Reports (water districts), LWUA monitoring data, and Manila Water statements.", true),
+        bullet(`Each figure is the utility's latest validated observation up to ${state.year}; the statement year is shown next to every value.`),
+        bullet("Amounts reported in PHP million are normalized to PHP, and volumes in million m³ to m³. Derived ratios (e.g. debt to equity) combine same-year statements only."),
+        bullet("Key financials are absolute statement lines shown for context; indicator values are as reported or derived per the WaterCRED definitions."),
+        bullet("Utility-to-province assignment is a compiled, approximate mapping — not an official geographic field."),
+        { text: `Prepared with WaterCRED · ${new Date().toISOString().slice(0, 10)}`, sz: 11, color: PPTC.faint, spcB: 12 }
+      ]);
+  }
+  function exportPPT() {
+    const top = rankedFiltered().slice(0, 10);
+    if (!top.length) return;
+    pptShapeId = 2;
+    const slides = [pptTitleSlide(top.length), ...top.map(pptUtilitySlide), pptNotesSlide()];
+    download(pptxBlob(slides), `watercred_utilities_${state.year}.pptx`);
   }
 
   // ---- Load & wire ---------------------------------------------------------
@@ -769,6 +946,7 @@
   document.querySelector("#yearFilter").addEventListener("change", e => { state.year = Number(e.target.value); populateStaticControls(); renderDatasetIndicators(); renderAll(); });
   document.querySelector("#searchFilter").addEventListener("input", e => { state.search = e.target.value.trim().toLowerCase(); renderAll(); });
   document.querySelector("#exportBtn").addEventListener("click", exportExcel);
+  document.querySelector("#exportPptBtn").addEventListener("click", exportPPT);
   document.querySelector("#filterReset").addEventListener("click", () => {
     state.sizes.clear(); state.regions.clear(); state.provinces.clear(); state.search = ""; state.indicators.clear();
     document.querySelector("#searchFilter").value = "";

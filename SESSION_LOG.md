@@ -218,3 +218,18 @@ geoBoundaries (CC-BY 4.0) and PSGC 2019 in the page footer, map note, README, an
 - Expanded utility rows no longer show the per-factor "Underlying data" lines or the "no validated observation through <year>" rows — the factor table lists **evidenced factors only**. (The raw `inputs` are still captured on each factor: they drive the actual-use "ranking input" tag.)
 - New **Key financials** card at the top of each breakdown: absolute figures that are deliberately NOT part of the score, for judging financial health — total operating revenue, total operating expenses, net income (loss), net operating cash flow, total assets (all 517–518/519 utility coverage; latest observation ≤ selected year, ₱-compact-formatted with year + source institution). Chosen to cover income statement, cash generation and balance-sheet scale.
 - Verified: Claveria WD shows revenue ₱8.84M − OPEX ₱6.67M ≈ net income ₱2.17M (internally consistent), cash flow ₱1.92M, assets ₱18.49M, all "2020 · COA"; no underlying/missing rows remain; no console errors.
+
+## 2026-07-22 — Styled/consolidated Excel export + top-10 PowerPoint export
+
+### Excel redesign (`philippines.js`)
+- The `.xlsx` writer gained a styles part (teal bold header row, #,##0 / #,##0.00 number formats, title style, Normal cell style), frozen header rows, autofilter, and custom column widths — still fully hand-built OOXML in a stored ZIP, no libraries.
+- **Tabs consolidated 4 → 3** for easier filtering: the old Ranking + Factor detail sheets merged into one wide **Ranking** sheet (one row per utility: rank, geography, LWUA size, median connections, score/band, key financials in PHP, and a value + points column pair for each of the 13 factors, all under a single autofilter). **Indicator data** (full provenance, filterable, frozen header) and **Export notes** (now with a compact "Active filters" line) remain.
+
+### PowerPoint export (`#exportPptBtn`, "Top 10 → PowerPoint")
+- New dependency-free `.pptx` writer sharing the stored-ZIP core: presentation/master/layout/theme + hand-built slide XML (brand colours, rounded card, zebra tables via `a:tbl`).
+- Exports the **10 highest-placed utilities under the current filters**: dark title slide (count, active filters, compile date, sources), one profile slide per utility — header band with name/place/LWUA size/connections, a "Key financials" card (revenue, OPEX, net income, operating cash flow, total assets with year · source), and an "Evidenced indicators" table (value, year, source) — plus a closing "Data & notes" slide. **No rating information anywhere**: no scores, points, bands or ranks (utilities are ordered by rank but it is not printed).
+- `zipStore` parameterized by MIME; `SOURCE_SHORT` gained the long "LWUA … via DAP RBPMS" label → "LWUA · DAP RBPMS" (also improves on-page source labels).
+
+### Verification
+- Node harness (writer code extracted verbatim from `philippines.js`): xlsx opens in openpyxl with **zero warnings** — header bold + FF1D7180 fill, freeze A2, autofilter ref, number formats, widths all confirmed; pptx opens in python-pptx — correct 13.33×7.5in size, shapes, escaped text, table cells.
+- Real browser exports at 2025 defaults: xlsx 19.15 MB in ~2.2 s; pptx 219 KB in 20 ms. The real deck (base64'd out of the browser) has 12 slides — title, 10 utility profiles (e.g. Claveria WD with 6-row indicator table), notes — and a regex sweep over every text frame and table cell found **zero occurrences of score/points/band/rating/rank**. No console errors.
