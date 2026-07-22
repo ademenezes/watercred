@@ -168,3 +168,27 @@ geoBoundaries (CC-BY 4.0) and PSGC 2019 in the page footer, map note, README, an
 - Effect at the 2025 default: **252 ranked utilities** (was 102 under the 5-year rule; 251 at 2023) — utilities whose audited filings stop in 2018–2020 remain ranked on that older evidence, with the age visible per row (e.g. "Data years 2014–2020").
 - Verified in-browser: 252 ranked at 2025 / 251 at 2023, old data years shown in breakdowns, updated captions render, no console errors.
 - This commit also carries the parallel-session expansion to **13 evidence-eligible factors** (debt/CADS, DSCR, cash reserves, debtor days) and the staffing/connection **plausibility screen**, already documented in README ("Creditworthiness ranking method").
+
+## 2026-07-22 — Ranking expanded to 13 evidence-eligible factors + staffing plausibility screen
+
+### Four new factors (all direct CSV indicators, no derivation)
+- `phlFactorInputs` grew from 9 to 13; `core.js` untouched (all four factors, bands and definitions already exist there). Mapping, verified against the CSV before wiring:
+  - **Debt / cash available for debt service** (weight 9 — the model's highest) ← `FIN_DEBT_TO_CADS`, a bare ratio ("outstanding loans payable ÷ CADS"), matching the workbook's × bands.
+  - **Debt service coverage ratio** (weight 7) ← `FIN_DSCR`, bare ratio.
+  - **Cash reserves** (weight 4) ← `FIN_CASH_SUFFICIENCY` (cash ÷ OPEX × 100), scored with the workbook's % bands — disclosed as a demo convention via a `unitNote`, same pattern as liquidity.
+  - **Debtor days** (weight 5) ← `FIN_ACCOUNTS_RECEIVABLE`, which is already denominated in days ("AR ÷ average daily billing") despite the monetary-sounding id (the PHP stock is the separate `FIN_RECEIVABLES`).
+- Deferred (thin coverage): maintenance cost share (~14 utilities), bad-debt provision (~12, needs derivation), grant dependency (~4).
+- Bookkeeping in the same change: the four ids added to `RANKING_INPUT_IDS`; coverage-confidence thresholds rescaled (High ≥10, Medium ≥7, Low ≥4 of 13); all hard-coded "9"/"nine" strings in `philippines.js` replaced with `phlFactorInputs.length`; prose counts and factor enumerations updated in `philippines.html` and README.
+
+### Staffing/connection plausibility screen (motivating bug: Tiaong)
+- User-reported: Tiaong WD showed **~787,758 staff per 1,000 connections**. Root cause is source data, not code: `INST_PERMANENT_EMPLOYEES` 2021 = 8,747,272 "people" — a peso amount misfiled as a headcount (Tiaong has no `FIN_STAFF_COSTS` row; the value has cost magnitude). Same error class found elsewhere: Digos City 2018–20 (24.7–28.2M "employees", with centavo decimals), Metro Roxas/Penablanca/Reina Mercedes 2023–24 (the report **year** copied into the value), Bayugan 2019 (connections 319,878.42 — fractional and ~50× its other years — plus conn-per-staff 1,518, ~4× the national max), Calabanga 2012 (180,000). All carry `3_verified`, so verification level does not guarantee field plausibility.
+- Screen applied at scoring/size-classification time only (the raw dataset table still shows rows as published), never inventing substitutes — a screened-out observation just leaves the factor unevidenced: employee counts must be positive integers ≤ 5,000 (largest real count nationally: Manila Water ~2,663) and ≠ the report year; `INST_PRODUCTIVITY_CONN_PER_STAFF` ≤ 800; `OPS_CONNECTIONS_TOTAL` integer. Disclosed in `philippines.html` methodology and README.
+
+### Verification (browser, local server; through-year 2025)
+- 13 indicator-filter checkboxes, 13 rows in the per-factor coverage table, 13 "ranked" flags in the 23-factor reference table; no console errors.
+- New-factor coverage at 2025 (no-age-limit rules): debt/CADS **105**/519 utilities, DSCR **36**, cash reserves **68**, debtor days **59**.
+- Hand-checked Digos City against the CSV: debt/CADS 1.086 → "1.09×", band 0.9–1.7× = 3/4; cash sufficiency 89.29 → 4/4 (>25%); AR 27.9 days → 4/4 (<45) — all match `core.js` bands. Digos now scores 11/13 factors (staff correctly unevidenced).
+- Tiaong: staff factor now "no validated observation" (absurd value gone), still ranked on 4 factors. Bayugan: bogus 2019 rows rejected; its staff factor now uses the legitimate 2012 pair (16 staff ÷ 5,338 conn = 3.0/1,000), size category unaffected (median of remaining counts stays Cat C). Manila Water's staff factor survives the screen (1.9/1,000 from 2024 filings).
+- Ranked count: under the (since-removed) 5-year rule the new factors took 2025 ranking from 102 → **105** utilities; combined with the same-day age-limit removal the page now ranks **252**.
+- Excel export ranking header is now dynamic ("Evidenced factors (of 13)"); factor-detail sheet picks up the new factors automatically.
+- Georgia regression: `georgia.html` "Original workbook reference" preset scores exactly **49.0** (page default with Geostat poverty 7.1% shows 49.8, as before).
