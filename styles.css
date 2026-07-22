@@ -211,11 +211,14 @@ summary.ranking-row:hover .ranking-toggle { border-color: var(--lime); }
 .factor-table td b { color: white; }
 .factor-table small { color: #9fbdbc; }
 .factor-table tr.factor-missing td { color: #6f9295; font-style: italic; }
-.factor-table tr.factor-inputs td { padding: 0 14px 9px 14px; border-bottom: 1px solid #2a5960; color: #9fbdbc; font-size: 0.7rem; line-height: 1.6; }
-.factor-table tr.factor-inputs td > span { color: #88aaab; font-weight: 800; font-size: 0.62rem; letter-spacing: 0.06em; text-transform: uppercase; }
-.factor-table tr.factor-inputs td b { color: #dcebe8; font-weight: 700; }
-.factor-table tr.factor-inputs td small { color: #6f9295; }
-.factor-table tr:has(+ .factor-inputs) td { border-bottom: 0; }
+.key-financials { margin: 4px 0 16px; padding: 12px 14px; background: rgba(255,255,255,0.04); border: 1px solid #2a5960; border-radius: 10px; }
+.key-financials h4 { margin: 0 0 9px; color: #88aaab; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.key-financials h4 small { color: #6f9295; font-weight: 600; letter-spacing: 0.03em; text-transform: none; }
+.key-financials-grid { display: flex; flex-wrap: wrap; gap: 10px 30px; }
+.key-financials-grid > div { display: grid; gap: 1px; }
+.key-financials-grid span { color: #9fbdbc; font-size: 0.66rem; font-weight: 700; }
+.key-financials-grid b { color: white; font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+.key-financials-grid small { color: #6f9295; font-size: 0.62rem; }
 
 .utility-detail { margin-top: 26px; }
 .utility-detail:empty { display: none; }

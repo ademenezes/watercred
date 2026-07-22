@@ -285,23 +285,34 @@
     return Number.isInteger(o.value) ? o.value.toLocaleString() : o.value.toFixed(2);
   };
 
-  // Per-utility factor breakdown shown inside each expandable ranking row.
+  // Absolute statement lines shown in each breakdown for context. Deliberately
+  // NOT part of the score — high-coverage figures for judging financial health.
+  const KEY_FINANCIALS = [
+    { id: "FIN_REVENUE", label: "Total operating revenue" },
+    { id: "FIN_OPEX_TOTAL", label: "Total operating expenses" },
+    { id: "FIN_NET_INCOME", label: "Net income (loss)" },
+    { id: "FIN_OPERATING_CASHFLOW", label: "Net operating cash flow" },
+    { id: "FIN_TOTAL_ASSETS", label: "Total assets" }
+  ];
+
+  // Per-utility factor breakdown shown inside each expandable ranking row
+  // (evidenced factors only).
   function renderFactorBreakdown(row) {
-    const ordered = [...row.factors.filter(f => f.available), ...row.factors.filter(f => !f.available)];
-    const body = ordered.map(f => {
-      if (!f.available) return `<tr class="factor-missing"><td>${f.name}</td><td colspan="6">no validated observation through ${state.year}</td></tr>`;
-      const inputs = f.inputs?.length
-        ? `<tr class="factor-inputs"><td colspan="7"><span>Underlying data:</span> ${f.inputs.map(o =>
-            `${esc(o.name)} <small>(${esc(o.id)} · ${o.year} · ${esc(o.institution)})</small> = <b>${formatObsValue(o)}</b>`).join(" &nbsp;·&nbsp; ")}</td></tr>`
-        : "";
-      return `<tr><td>${f.name}${f.unitNote ? ` <small>(${esc(f.unitNote)})</small>` : ""}</td>
+    const body = row.factors.filter(f => f.available).map(f =>
+      `<tr><td>${f.name}${f.unitNote ? ` <small>(${esc(f.unitNote)})</small>` : ""}</td>
           <td>${esc(f.formatted)}</td>
           <td><b>${f.points}/4</b> <small>${esc(f.band)}</small></td>
           <td>${f.weight}</td><td>${f.weighted}</td>
-          <td>${f.years.join(", ")}</td><td>${esc(f.sourceLabel)}</td></tr>${inputs}`;
+          <td>${f.years.join(", ")}</td><td>${esc(f.sourceLabel)}</td></tr>`).join("");
+    const keyFin = KEY_FINANCIALS.map(k => {
+      const o = latestObservation(row.id, k.id, state.year);
+      return o && Number.isFinite(o.value)
+        ? `<div><span>${k.label}</span><b>${formatObsValue(o)}</b><small>${o.year} · ${esc(shortInstitution(o.source_institution))}</small></div>`
+        : "";
     }).join("");
     return `<div class="factor-breakdown">
       <p class="factor-breakdown-note">${esc(row.detailNote ?? "")}</p>
+      ${keyFin ? `<div class="key-financials"><h4>Key financials <small>latest reported · context only, not scored</small></h4><div class="key-financials-grid">${keyFin}</div></div>` : ""}
       <div class="factor-table-wrap"><table class="factor-table">
         <thead><tr><th>Factor</th><th>Value</th><th>Band points</th><th>Weight</th><th>Weighted</th><th>Data year</th><th>Source</th></tr></thead>
         <tbody>${body}</tbody>
