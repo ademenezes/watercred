@@ -514,36 +514,42 @@
   }
 
   // ---- Dataset indicator commonality (all raw indicators in the reports) ---
-  // Raw CSV indicators that feed the ranked factors, directly or as
-  // components of a derived ratio (EBITDA, debt/equity, staff density).
-  const RANKING_INPUT_IDS = new Set([
-    "FIN_COST_COVERAGE", "FIN_COLLECTION_EFFICIENCY", "OPS_NRW_PCT", "FIN_ENERGY_COST_SHARE",
-    "FIN_STAFF_COST_SHARE", "FIN_CURRENT_LIQUIDITY", "FIN_EBITDA_MARGIN", "FIN_NET_INCOME",
-    "FIN_DEPRECIATION", "FIN_INTEREST_EXPENSE", "FIN_REVENUE", "FIN_NONOP_INCOME",
-    "FIN_TOTAL_LIABILITIES", "FIN_EQUITY", "INST_TOTAL_EMPLOYEES", "INST_PERMANENT_EMPLOYEES",
-    "OPS_CONNECTIONS_TOTAL", "INST_PRODUCTIVITY_CONN_PER_STAFF",
-    "FIN_DEBT_TO_CADS", "FIN_DSCR", "FIN_CASH_SUFFICIENCY", "FIN_ACCOUNTS_RECEIVABLE"
-  ]);
+  // The "ranking input" tag is computed from actual use: an indicator is
+  // tagged only if it appears in the underlying inputs of at least one ranked
+  // utility's score at the selected year. Merely being wired into a fallback
+  // (e.g. EBITDA components when the margin is reported directly) doesn't count.
+  function usedIndicatorIds(results) {
+    const used = new Set();
+    results.forEach(r => {
+      if (!r.ranked) return;
+      r.factors.forEach(f => f.available && f.inputs?.forEach(o => used.add(o.id)));
+    });
+    return used;
+  }
+  let datasetIndAgg = null;  // whole-dataset aggregation, computed once
   function renderDatasetIndicators() {
     const container = document.querySelector("#datasetIndicatorTable");
     if (!container) return;
-    const byInd = new Map();
-    observations.forEach(r => {
-      const e = byInd.get(r.indicator_id)
-        ?? byInd.set(r.indicator_id, { name: r.indicator_name || r.indicator_id, category: r.category || "", utils: new Set(), n: 0, minY: Infinity, maxY: -Infinity }).get(r.indicator_id);
-      e.utils.add(r.utility_id); e.n++;
-      if (r.year < e.minY) e.minY = r.year;
-      if (r.year > e.maxY) e.maxY = r.year;
-    });
+    if (!datasetIndAgg) {
+      const byInd = new Map();
+      observations.forEach(r => {
+        const e = byInd.get(r.indicator_id)
+          ?? byInd.set(r.indicator_id, { name: r.indicator_name || r.indicator_id, category: r.category || "", utils: new Set(), n: 0, minY: Infinity, maxY: -Infinity }).get(r.indicator_id);
+        e.utils.add(r.utility_id); e.n++;
+        if (r.year < e.minY) e.minY = r.year;
+        if (r.year > e.maxY) e.maxY = r.year;
+      });
+      datasetIndAgg = [...byInd.entries()].sort((a, b) => b[1].utils.size - a[1].utils.size || a[0].localeCompare(b[0]));
+    }
+    const used = usedIndicatorIds(resultsFor(state.year));
     const totalU = obsByUtil.size;
-    const rows = [...byInd.entries()].sort((a, b) => b[1].utils.size - a[1].utils.size || a[0].localeCompare(b[0]));
     document.querySelector("#datasetIndicatorCaption").textContent =
-      `All ${rows.length} indicators found in the source reports, most common first: how many of the ${totalU} utilities have at least one validated observation of each.`;
+      `All ${datasetIndAgg.length} indicators found in the source reports, most common first: how many of the ${totalU} utilities have at least one validated observation of each. ${used.size} indicators are used as ranking inputs at ${state.year}.`;
     container.innerHTML = `<table class="factor-table coverage-table dataset-ind-table">
       <thead><tr><th>Indicator</th><th>Category</th><th>Utilities with it</th><th>Share</th><th>Observations</th><th>Years</th></tr></thead>
-      <tbody>${rows.map(([id, e]) => {
+      <tbody>${datasetIndAgg.map(([id, e]) => {
         const share = e.utils.size / totalU * 100;
-        return `<tr><td><b>${esc(e.name)}</b>${RANKING_INPUT_IDS.has(id) ? ` <span class="rank-flag" title="Feeds the ranking's ${phlFactorInputs.length} evidence-eligible factors">ranking input</span>` : ""}<br><small>${esc(id)}</small></td>
+        return `<tr><td><b>${esc(e.name)}</b>${used.has(id) ? ` <span class="rank-flag" title="Used in at least one ranked utility's score at ${state.year}, directly or in a derived ratio">ranking input</span>` : ""}<br><small>${esc(id)}</small></td>
           <td>${esc(e.category)}</td>
           <td><b>${e.utils.size}</b> / ${totalU}</td>
           <td><span class="cov-share"><span style="width:${share.toFixed(1)}%"></span></span> ${share.toFixed(0)}%</td>
@@ -749,7 +755,7 @@
     }
   }
 
-  document.querySelector("#yearFilter").addEventListener("change", e => { state.year = Number(e.target.value); populateStaticControls(); renderAll(); });
+  document.querySelector("#yearFilter").addEventListener("change", e => { state.year = Number(e.target.value); populateStaticControls(); renderDatasetIndicators(); renderAll(); });
   document.querySelector("#searchFilter").addEventListener("input", e => { state.search = e.target.value.trim().toLowerCase(); renderAll(); });
   document.querySelector("#exportBtn").addEventListener("click", exportExcel);
   document.querySelector("#filterReset").addEventListener("click", () => {
