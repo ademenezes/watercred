@@ -56,19 +56,28 @@
             <input type="search" id="searchFilter" list="utilityList" placeholder="Utility, province, region…" autocomplete="off" aria-label="Search utilities by name, province or region">
           </label>
           <datalist id="utilityList"></datalist>
-          <label>Size (LWUA)
-            <select id="sizeFilter"></select>
-          </label>
-          <label>Region (admin 1)
-            <select id="regionFilter"></select>
-          </label>
-          <label>Province (admin 2)
-            <select id="provinceFilter"></select>
-          </label>
+          <span class="filter-label">Size (LWUA)
+            <details class="multiselect" id="sizeFilter">
+              <summary aria-label="Filter by LWUA size categories">All sizes</summary>
+              <div class="multiselect-panel"></div>
+            </details>
+          </span>
+          <span class="filter-label">Region (admin 1)
+            <details class="multiselect" id="regionFilter">
+              <summary aria-label="Filter by regions">All regions</summary>
+              <div class="multiselect-panel"></div>
+            </details>
+          </span>
+          <span class="filter-label">Province (admin 2)
+            <details class="multiselect" id="provinceFilter">
+              <summary aria-label="Filter by provinces">All provinces</summary>
+              <div class="multiselect-panel"></div>
+            </details>
+          </span>
           <span class="filter-label">Indicators
             <details class="multiselect" id="indicatorFilter">
-              <summary id="indicatorFilterSummary" aria-label="Filter by evidenced indicators">All indicators</summary>
-              <div class="multiselect-panel" id="indicatorFilterPanel"></div>
+              <summary aria-label="Filter by evidenced indicators">All indicators</summary>
+              <div class="multiselect-panel"></div>
             </details>
           </span>
           <label>Through year

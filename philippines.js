@@ -61,7 +61,7 @@
 
   const direct = indicatorId => (utilityId, year, helpers) => {
     const observation = helpers.latestObservation(utilityId, indicatorId, year);
-    return observation ? { value: observation.value, years: [observation.year], sources: [sourceOf(observation)] } : null;
+    return observation ? { value: observation.value, years: [observation.year], sources: [sourceOf(observation)], inputs: [observation] } : null;
   };
 
   function ebitdaMargin(utilityId, year, helpers) {
@@ -74,7 +74,7 @@
     if (revenue <= 0) return null;
     const ebitda = set.values.get("FIN_NET_INCOME") + set.values.get("FIN_DEPRECIATION")
       + set.values.get("FIN_INTEREST_EXPENSE") - (set.values.get("FIN_NONOP_INCOME") ?? 0);
-    return { value: ebitda / revenue * 100, years: [set.year], sources: setSources(set), derived: "same-year statements" };
+    return { value: ebitda / revenue * 100, years: [set.year], sources: setSources(set), inputs: [...set.rows.values()], derived: "same-year statements" };
   }
 
   function debtEquity(utilityId, year, helpers) {
@@ -84,8 +84,8 @@
     if (!set) return null;
     const equity = set.values.get("FIN_EQUITY");
     // Negative or zero equity: leverage is worse than any workbook band — score 0 directly.
-    if (equity <= 0) return { points: 0, years: [set.year], sources: setSources(set), note: "negative equity — worst band by demo convention" };
-    return { value: set.values.get("FIN_TOTAL_LIABILITIES") / equity * 100, years: [set.year], sources: setSources(set), derived: "same-year statements" };
+    if (equity <= 0) return { points: 0, years: [set.year], sources: setSources(set), inputs: [...set.rows.values()], note: "negative equity — worst band by demo convention" };
+    return { value: set.values.get("FIN_TOTAL_LIABILITIES") / equity * 100, years: [set.year], sources: setSources(set), inputs: [...set.rows.values()], derived: "same-year statements" };
   }
 
   // Staffing/connection plausibility guard (documented demo convention): a few
@@ -111,12 +111,12 @@
     for (const employeeId of ["INST_TOTAL_EMPLOYEES", "INST_PERMANENT_EMPLOYEES"]) {
       const set = latestConsistentSet(uobs, [employeeId, "OPS_CONNECTIONS_TOTAL"], [], year);
       if (set && set.values.get("OPS_CONNECTIONS_TOTAL") > 0) {
-        return { value: set.values.get(employeeId) / set.values.get("OPS_CONNECTIONS_TOTAL") * 1000, years: [set.year], sources: setSources(set), derived: "employees ÷ connections" };
+        return { value: set.values.get(employeeId) / set.values.get("OPS_CONNECTIONS_TOTAL") * 1000, years: [set.year], sources: setSources(set), inputs: [...set.rows.values()], derived: "employees ÷ connections" };
       }
     }
     const set = latestConsistentSet(uobs, ["INST_PRODUCTIVITY_CONN_PER_STAFF"], [], year);
     const connPerStaff = set?.values.get("INST_PRODUCTIVITY_CONN_PER_STAFF");
-    if (connPerStaff > 0) return { value: 1000 / connPerStaff, years: [set.year], sources: setSources(set), derived: "1,000 ÷ connections per staff" };
+    if (connPerStaff > 0) return { value: 1000 / connPerStaff, years: [set.year], sources: setSources(set), inputs: [...set.rows.values()], derived: "1,000 ÷ connections per staff" };
     return null;
   }
 
@@ -159,6 +159,8 @@
         factorId: entry.factorId, name: factor.name, weight: factor.weight, available: true,
         value: hasValue ? result.value : null,
         formatted: hasValue ? entry.format(result.value) : "—",
+        inputs: (result.inputs ?? []).map(o => ({ id: o.indicator_id, name: o.indicator_name || o.indicator_id,
+          value: o.value, unit: o.unit, year: o.year, institution: shortInstitution(o.source_institution) })),
         points: factorPoints, band, weighted: factorPoints * factor.weight,
         years: [...new Set(result.years)], institutions,
         sourceLabel: institutions.join(" + ")
@@ -241,7 +243,8 @@
   }
   const helpers = { latestObservation, clamp, utilityName, observations: () => observations, utilityObs: id => obsByUtil.get(id) ?? [] };
 
-  const state = { year: DEFAULT_YEAR, size: "all", region: "all", province: "all", search: "", indicators: new Set() };
+  // Multi-select filters: an empty Set means "no filter" (all pass).
+  const state = { year: DEFAULT_YEAR, sizes: new Set(), regions: new Set(), provinces: new Set(), search: "", indicators: new Set() };
   const resultCache = new Map();
 
   function resultsFor(year) {
@@ -261,9 +264,9 @@
     return results;
   }
 
-  const sizeOK = r => state.size === "all" || (state.size === "unknown" ? !r.size : r.size?.key === state.size);
-  const regionOK = r => state.region === "all" || r.region === state.region;
-  const provinceOK = r => state.province === "all" || r.province === state.province;
+  const sizeOK = r => !state.sizes.size || (r.size ? state.sizes.has(r.size.key) : state.sizes.has("unknown"));
+  const regionOK = r => !state.regions.size || state.regions.has(r.region);
+  const provinceOK = r => !state.provinces.size || state.provinces.has(r.province);
   const searchOK = r => !state.search
     || [r.name, r.id, r.provinceName, r.region].some(s => s && s.toLowerCase().includes(state.search));
   // Indicator filter: utility must have evidence for EVERY selected factor.
@@ -272,17 +275,31 @@
 
   const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+  // Human formatting for a raw observation value, by its CSV unit.
+  const formatObsValue = o => {
+    if (!Number.isFinite(o.value)) return "—";
+    if (o.unit === "PHP") return `₱${compact(o.value)}`;
+    if (o.unit === "%") return `${o.value.toFixed(1)}%`;
+    if (o.unit === "m3") return `${compact(o.value)} m³`;
+    if (o.unit === "days") return `${o.value.toFixed(0)} days`;
+    return Number.isInteger(o.value) ? o.value.toLocaleString() : o.value.toFixed(2);
+  };
+
   // Per-utility factor breakdown shown inside each expandable ranking row.
   function renderFactorBreakdown(row) {
     const ordered = [...row.factors.filter(f => f.available), ...row.factors.filter(f => !f.available)];
-    const body = ordered.map(f => f.available
-      ? `<tr><td>${f.name}${f.unitNote ? ` <small>(${esc(f.unitNote)})</small>` : ""}</td>
+    const body = ordered.map(f => {
+      if (!f.available) return `<tr class="factor-missing"><td>${f.name}</td><td colspan="6">no validated observation through ${state.year}</td></tr>`;
+      const inputs = f.inputs?.length
+        ? `<tr class="factor-inputs"><td colspan="7"><span>Underlying data:</span> ${f.inputs.map(o =>
+            `${esc(o.name)} <small>(${esc(o.id)} · ${o.year} · ${esc(o.institution)})</small> = <b>${formatObsValue(o)}</b>`).join(" &nbsp;·&nbsp; ")}</td></tr>`
+        : "";
+      return `<tr><td>${f.name}${f.unitNote ? ` <small>(${esc(f.unitNote)})</small>` : ""}</td>
           <td>${esc(f.formatted)}</td>
           <td><b>${f.points}/4</b> <small>${esc(f.band)}</small></td>
           <td>${f.weight}</td><td>${f.weighted}</td>
-          <td>${f.years.join(", ")}</td><td>${esc(f.sourceLabel)}</td></tr>`
-      : `<tr class="factor-missing"><td>${f.name}</td><td colspan="6">no validated observation through ${state.year}</td></tr>`
-    ).join("");
+          <td>${f.years.join(", ")}</td><td>${esc(f.sourceLabel)}</td></tr>${inputs}`;
+    }).join("");
     return `<div class="factor-breakdown">
       <p class="factor-breakdown-note">${esc(row.detailNote ?? "")}</p>
       <div class="factor-table-wrap"><table class="factor-table">
@@ -303,7 +320,9 @@
       return;
     }
     document.querySelector("#rankingBody").innerHTML = rows.map(row => {
-      const sizeTag = row.size ? `${row.size.name} <span class="size-chip">${row.size.key}</span>` : `<span class="size-chip unknown">size n/a</span>`;
+      const sizeTag = row.size
+        ? `${row.size.name} <span class="size-chip">${row.size.key}</span> · ${Math.round(row.size.connections).toLocaleString()} conn`
+        : `<span class="size-chip unknown">size n/a</span>`;
       const place = [row.provinceName, row.region ? row.region.replace(/\s*\(.*\)$/, "") : ""].filter(Boolean).join(" · ");
       const cells = `
       <span class="ranking-rank" role="cell">${row.ranked ? row.rank : "—"}</span>
@@ -346,7 +365,7 @@
       const med = hasData ? median([...scores].sort((a,b) => a - b)) : null;
       const band = hasData ? bandForScore(med) : null;
       const color = band ? band.color : NO_DATA_COLOR;
-      const selected = state.province === pid;
+      const selected = state.provinces.has(pid);
       const detail = hasData ? `median ${med.toFixed(1)} · ${band.label} · ${scores.length} ranked`
         : (provincesWithUtilities.has(pid) ? "no ranked utility here" : "no water district in dataset");
       // clickable only where there is a ranked utility under the current filters
@@ -367,13 +386,16 @@
     });
     svg.querySelectorAll("[data-prov]").forEach(shape => {
       const toggle = () => {
-        state.province = state.province === shape.dataset.prov ? "all" : shape.dataset.prov;
-        // keep the province dropdown in sync (and its region context)
-        if (state.province !== "all") {
-          const reg = PHL_PROVINCE_META[state.province]?.region ?? "all";
-          if (state.region !== "all" && state.region !== reg) state.region = "all";
+        const pid = shape.dataset.prov;
+        if (state.provinces.has(pid)) {
+          state.provinces.delete(pid);
+        } else {
+          state.provinces.add(pid);
+          // a region filter that would hide the newly picked province is cleared
+          const reg = PHL_PROVINCE_META[pid]?.region ?? "";
+          if (state.regions.size && !state.regions.has(reg)) state.regions.clear();
         }
-        syncControls();
+        populateStaticControls();  // re-sync region + province dropdowns
         renderAll();
       };
       shape.addEventListener("click", toggle);
@@ -408,41 +430,76 @@
     </table>`;
   }
 
-  // ---- Filter controls -----------------------------------------------------
+  // ---- Filter controls (checkbox dropdowns; empty selection = all) --------
+  // Philippine administrative regions ordered by their official number.
+  const REGION_ORDER = ["NCR", "CAR", "I", "II", "III", "IV-A", "IV-B", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "BARMM"];
+  const regionCode = s => (s.match(/\(([^)]+)\)\s*$/) ?? [, ""])[1];
+  const regionLabel = s => {
+    const code = regionCode(s), name = s.replace(/\s*\(.*\)$/, "");
+    return code ? `${/^[IVX]/.test(code) ? `Region ${code}` : code} · ${name}` : name;
+  };
+  const regionRank = s => { const i = REGION_ORDER.indexOf(regionCode(s)); return i < 0 ? 99 : i; };
+
+  // Shared checkbox-dropdown: renders options into a .multiselect and keeps
+  // its summary label in sync with the backing Set.
+  function populateMultiselect(rootSel, { options, selected, allLabel, hint, onChange }) {
+    const root = document.querySelector(rootSel);
+    const panel = root.querySelector(".multiselect-panel");
+    panel.innerHTML = (hint ? `<span class="multiselect-hint">${hint}</span>` : "")
+      + options.map(o => `<label><input type="checkbox" value="${esc(o.value)}"${selected.has(o.value) ? " checked" : ""}> ${esc(o.label)}</label>`).join("");
+    const sync = () => {
+      const n = selected.size;
+      const one = n === 1 ? options.find(o => o.value === [...selected][0]) : null;
+      root.querySelector("summary").textContent = n === 0 ? allLabel : one ? (one.short ?? one.label) : `${n} selected`;
+    };
+    panel.querySelectorAll("input").forEach(cb => cb.addEventListener("change", () => {
+      cb.checked ? selected.add(cb.value) : selected.delete(cb.value);
+      sync();
+      onChange();
+    }));
+    sync();
+  }
+
   function populateStaticControls() {
     const results = resultsFor(state.year);
-    // years
+    // year (single-select by design)
     const years = [...new Set(observations.map(r => r.year))].filter(y => y >= MIN_YEAR).sort((a,b) => b - a);
-    document.querySelector("#yearFilter").innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join("");
-    // size
-    document.querySelector("#sizeFilter").innerHTML =
-      `<option value="all">All sizes</option>` +
-      SIZE_BANDS.map(b => `<option value="${b.key}">${b.name} (Cat ${b.key}, ${b.range})</option>`).join("") +
-      `<option value="unknown">Size unknown</option>`;
-    // region (only those with ranked utilities)
-    const regions = [...new Set(results.filter(r => r.ranked).map(r => r.region).filter(Boolean))].sort();
-    document.querySelector("#regionFilter").innerHTML =
-      `<option value="all">All regions</option>` + regions.map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join("");
-    syncControls();
+    const yearSel = document.querySelector("#yearFilter");
+    yearSel.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join("");
+    yearSel.value = String(state.year);
+    populateMultiselect("#sizeFilter", {
+      allLabel: "All sizes",
+      options: [
+        ...SIZE_BANDS.map(b => ({ value: b.key, label: `${b.name} (Cat ${b.key}, ${b.range})`, short: `${b.name} (${b.key})` })),
+        { value: "unknown", label: "Size unknown" }
+      ],
+      selected: state.sizes,
+      onChange: renderAll
+    });
+    // regions with ranked utilities, ordered by official region number
+    const regions = [...new Set(results.filter(r => r.ranked).map(r => r.region).filter(Boolean))]
+      .sort((a, b) => regionRank(a) - regionRank(b) || a.localeCompare(b));
+    [...state.regions].forEach(v => { if (!regions.includes(v)) state.regions.delete(v); });
+    populateMultiselect("#regionFilter", {
+      allLabel: "All regions",
+      options: regions.map(s => ({ value: s, label: regionLabel(s) })),
+      selected: state.regions,
+      onChange: () => { updateProvinceOptions(); renderAll(); }
+    });
     updateProvinceOptions();
   }
 
   function updateProvinceOptions() {
     const results = resultsFor(state.year);
-    const inScope = results.filter(r => r.ranked && r.province && (state.region === "all" || r.region === state.region));
+    const inScope = results.filter(r => r.ranked && r.province && (!state.regions.size || state.regions.has(r.region)));
     const provs = [...new Map(inScope.map(r => [r.province, r.provinceName])).entries()].sort((a,b) => a[1].localeCompare(b[1]));
-    const sel = document.querySelector("#provinceFilter");
-    sel.innerHTML = `<option value="all">All provinces</option>` +
-      provs.map(([id,name]) => `<option value="${esc(id)}">${esc(name)}</option>`).join("");
-    if (state.province !== "all" && !provs.some(([id]) => id === state.province)) state.province = "all";
-    sel.value = state.province;
-  }
-
-  function syncControls() {
-    document.querySelector("#yearFilter").value = String(state.year);
-    document.querySelector("#sizeFilter").value = state.size;
-    document.querySelector("#regionFilter").value = state.region;
-    document.querySelector("#provinceFilter").value = state.province;
+    [...state.provinces].forEach(p => { if (!provs.some(([id]) => id === p)) state.provinces.delete(p); });
+    populateMultiselect("#provinceFilter", {
+      allLabel: "All provinces",
+      options: provs.map(([id, name]) => ({ value: id, label: name })),
+      selected: state.provinces,
+      onChange: renderAll
+    });
   }
 
   let lastFiltered = [];   // rows currently shown in the ranking — what Export downloads
@@ -495,24 +552,14 @@
   }
 
   // ---- Indicator multi-select filter --------------------------------------
-  function syncIndicatorSummary() {
-    const n = state.indicators.size;
-    document.querySelector("#indicatorFilterSummary").textContent =
-      n === 0 ? "All indicators" : n === 1 ? factorById[[...state.indicators][0]].name : `${n} indicators selected`;
-  }
   function populateIndicatorFilter() {
-    const panel = document.querySelector("#indicatorFilterPanel");
-    panel.innerHTML = `<span class="multiselect-hint">Show only utilities with evidence for every ticked factor.</span>`
-      + phlFactorInputs.map(entry => {
-        const f = factorById[entry.factorId];
-        return `<label><input type="checkbox" value="${entry.factorId}"${state.indicators.has(entry.factorId) ? " checked" : ""}> ${esc(f.name)}</label>`;
-      }).join("");
-    panel.querySelectorAll("input").forEach(cb => cb.addEventListener("change", () => {
-      cb.checked ? state.indicators.add(cb.value) : state.indicators.delete(cb.value);
-      syncIndicatorSummary();
-      renderAll();
-    }));
-    syncIndicatorSummary();
+    populateMultiselect("#indicatorFilter", {
+      allLabel: "All indicators",
+      hint: "Show only utilities with evidence for every ticked factor.",
+      options: phlFactorInputs.map(entry => ({ value: entry.factorId, label: factorById[entry.factorId].name })),
+      selected: state.indicators,
+      onChange: renderAll
+    });
   }
 
   // ---- Methodology: 23-indicator reference table ---------------------------
@@ -655,9 +702,9 @@
       ["WaterCRED · Philippines — filtered ranking export"], [],
       ["Exported", new Date().toISOString().slice(0, 10)],
       ["Through year", state.year],
-      ["Size filter", state.size === "all" ? "all sizes" : state.size === "unknown" ? "size unknown" : `LWUA category ${state.size}`],
-      ["Region filter", state.region === "all" ? "all regions" : state.region],
-      ["Province filter", state.province === "all" ? "all provinces" : (PHL_PROVINCE_META[state.province]?.name ?? state.province)],
+      ["Size filter", state.sizes.size ? [...state.sizes].map(k => k === "unknown" ? "size unknown" : `LWUA category ${k}`).join(", ") : "all sizes"],
+      ["Region filter", state.regions.size ? [...state.regions].map(regionLabel).join(", ") : "all regions"],
+      ["Province filter", state.provinces.size ? [...state.provinces].map(p => PHL_PROVINCE_META[p]?.name ?? p).join(", ") : "all provinces"],
       ["Search", state.search || "—"],
       ["Indicator filter", state.indicators.size ? [...state.indicators].map(id => factorById[id].name).join(", ") : "all indicators"],
       ["Utilities exported", rows.length], [],
@@ -702,22 +749,19 @@
     }
   }
 
-  document.querySelector("#yearFilter").addEventListener("change", e => { state.year = Number(e.target.value); state.province = "all"; populateStaticControls(); renderAll(); });
-  document.querySelector("#sizeFilter").addEventListener("change", e => { state.size = e.target.value; renderAll(); });
-  document.querySelector("#regionFilter").addEventListener("change", e => { state.region = e.target.value; state.province = "all"; updateProvinceOptions(); renderAll(); });
-  document.querySelector("#provinceFilter").addEventListener("change", e => { state.province = e.target.value; renderAll(); });
+  document.querySelector("#yearFilter").addEventListener("change", e => { state.year = Number(e.target.value); populateStaticControls(); renderAll(); });
   document.querySelector("#searchFilter").addEventListener("input", e => { state.search = e.target.value.trim().toLowerCase(); renderAll(); });
   document.querySelector("#exportBtn").addEventListener("click", exportExcel);
   document.querySelector("#filterReset").addEventListener("click", () => {
-    state.size = "all"; state.region = "all"; state.province = "all"; state.search = ""; state.indicators.clear();
+    state.sizes.clear(); state.regions.clear(); state.provinces.clear(); state.search = ""; state.indicators.clear();
     document.querySelector("#searchFilter").value = "";
+    populateStaticControls();
     populateIndicatorFilter();
-    syncControls(); updateProvinceOptions(); renderAll();
+    renderAll();
   });
-  // Close the indicator dropdown on outside click.
+  // Close any open filter dropdown on outside click.
   document.addEventListener("click", e => {
-    const ms = document.querySelector("#indicatorFilter");
-    if (ms?.open && !ms.contains(e.target)) ms.open = false;
+    document.querySelectorAll(".multiselect[open]").forEach(ms => { if (!ms.contains(e.target)) ms.open = false; });
   });
   // Nav links can point inside a collapsed <details> (e.g. #coverage) — open it.
   const openDetailsForHash = () => {

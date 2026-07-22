@@ -192,3 +192,19 @@ geoBoundaries (CC-BY 4.0) and PSGC 2019 in the page footer, map note, README, an
 - Ranked count: under the (since-removed) 5-year rule the new factors took 2025 ranking from 102 → **105** utilities; combined with the same-day age-limit removal the page now ranks **252**.
 - Excel export ranking header is now dynamic ("Evidenced factors (of 13)"); factor-detail sheet picks up the new factors automatically.
 - Georgia regression: `georgia.html` "Original workbook reference" preset scores exactly **49.0** (page default with Geostat poverty 7.1% shows 49.8, as before).
+
+## 2026-07-22 — Multi-select filters, underlying-data breakdowns, region numbers, connection counts
+
+### Multi-select filters (`philippines.html` / `philippines.js` / `styles.css`)
+- Size, region and province are now **checkbox multi-selects** like the indicator filter (year stays single-select). One shared component (`populateMultiselect`) renders all four; state moved to Sets (`sizes`/`regions`/`provinces`/`indicators`) where an **empty Set = no filter**. Summaries read "All …", the single selection's name, or "N selected".
+- Region options are ordered and labelled by **official region number** ("Region I · Ilocos Region", … "Region XIII · Caraga", with NCR/CAR/BARMM by code); province options follow the selected regions and out-of-scope selections are pruned. Map clicks now **toggle provinces in/out of the set** (multiple provinces selectable); a region filter that would hide a newly picked province is cleared. Reset clears every Set. Export notes list the selected values.
+- Removed the obsolete single-select change handlers (a details-based control would have received bubbled checkbox change events).
+
+### Underlying data per factor
+- Every compute function now returns its raw observation rows (`inputs`); each factor row in the breakdown is followed by an "Underlying data" line: indicator name + id, statement year, source institution, and the value formatted by CSV unit (₱ compact for PHP, %, m³, days, ratio). Derived ratios list every component (e.g. debt/equity shows total equity and total liabilities from the same statement year).
+
+### Connection counts next to size
+- Ranking rows now show the median reported connections beside the LWUA category (e.g. "Small D · 1,319 conn"); size-unknown utilities are unchanged.
+
+### Verification (browser, local server, port 8766)
+- 252 ranked at 2025 unchanged. Region panel lists 16 regions in numeric order (no NCR — no ranked utility maps to a Metro Manila province, as before). Ticking 2 regions → 42 ranked, summary "2 selected", province options narrowed to 7. Map click adds Abra (5 ranked, summary "Abra"); second click removes it. Reset restores all. Claveria WD breakdown shows underlying rows incl. derived debt/equity components (equity ₱16.73M, liabilities ₱1.76M, 2020 COA) and "Small D · 1,319 conn" in the row header. No console errors.
